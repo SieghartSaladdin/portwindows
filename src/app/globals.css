@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f0f12;
+  --foreground: #ffffff;
+  
+  --win-accent: #0078d4;
+  --win-accent-light: #479ecf;
+  --win-bg-glass-light: rgba(243, 243, 243, 0.7);
+  --win-bg-glass-dark: rgba(32, 32, 32, 0.75);
+  
+  --win-border-light: rgba(255, 255, 255, 0.4);
+  --win-border-dark: rgba(255, 255, 255, 0.08);
+}
+
+@theme {
+  --color-win-accent: var(--win-accent);
+  --color-win-accent-light: var(--win-accent-light);
+}
+
+/* Base resets for desktop environment */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: #0f0f12;
+  color: var(--foreground);
+}
+
+/* Glassmorphism / Mica effect overrides */
+.win-mica-light {
+  background: var(--win-bg-glass-light);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--win-border-light);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+}
+
+.win-mica-dark {
+  background: var(--win-bg-glass-dark);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--win-border-dark);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* Custom scrollbars inside application windows */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Minimize, maximize, close buttons transitions */
+.win-btn-transition {
+  transition: all 0.15s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+/* Start menu icons smooth grid */
+.start-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
