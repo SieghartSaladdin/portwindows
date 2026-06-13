@@ -96,7 +96,7 @@ export function DesktopChatInput() {
       const data = await res.json();
       let reply = data.text || '';
 
-      // 2. Parse Ollama's response (thoughts vs dialogue)
+      // 2. Parse OpenRouter's response (thoughts vs dialogue)
       const thinkingStart = reply.indexOf('Thinking...');
       const thinkingEnd = reply.indexOf('...done thinking.');
 

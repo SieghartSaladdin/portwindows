@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 
+interface ChatMessage {
+  role: string;
+  content: string;
+}
+
 export async function POST(request: Request) {
   try {
     const { message, history, partner } = await request.json();
@@ -21,7 +26,7 @@ export async function POST(request: Request) {
 
     if (history && Array.isArray(history) && history.length > 0) {
       customPrompt += `Here is the conversation history:\n`;
-      history.forEach((msg: any) => {
+      history.forEach((msg: ChatMessage) => {
         if (msg.role === 'user') {
           customPrompt += `Frieren: "${msg.content}"\n`;
         } else {
@@ -33,34 +38,41 @@ export async function POST(request: Request) {
 
     customPrompt += `Frieren says: "${message}"\n${charName}:`;
 
-    // Call local Ollama API
-    const response = await fetch('http://127.0.0.1:11434/api/generate', {
+    // Call OpenRouter API
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY || ''}`,
+        'HTTP-Referer': 'https://github.com/google-gemini',
+        'X-Title': 'PortWindows',
       },
       body: JSON.stringify({
-        model: 'gemma4:31b-cloud',
-        prompt: customPrompt,
-        stream: false,
+        model: 'google/gemma-4-31b-it:free',
+        messages: [
+          {
+            role: 'user',
+            content: customPrompt,
+          },
+        ],
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama service returned status ${response.status}`);
+      throw new Error(`OpenRouter API returned status ${response.status}`);
     }
 
     const data = await response.json();
-    const fullText = data.response || '';
+    const fullText = data.choices?.[0]?.message?.content || '';
 
     return NextResponse.json({ text: fullText });
-  } catch (error: any) {
-    console.error('Ollama API route error:', error);
+  } catch (error) {
+    console.error('OpenRouter API route error:', error);
     
-    // Provide a mocked in-character fallback response if Ollama is not running
+    // Provide a mocked in-character fallback response if OpenRouter fails
     // so the application doesn't crash and the user has a graceful experience.
     return NextResponse.json({
-      text: "Thinking...\nOllama is not running locally or the gemma4:31b-cloud model is not available.\n...done thinking.\n\nFrieren-sama, please make sure Ollama is running on your system.",
+      text: "Thinking...\nOpenRouter API request failed. Please make sure your OPENROUTER_API_KEY is configured in your .env.local file.\n...done thinking.\n\nFrieren-sama, please make sure your OpenRouter API key is set.",
       fallback: true
     });
   }
