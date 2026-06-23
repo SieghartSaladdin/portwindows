@@ -1,0 +1,25 @@
+# Ignore node_modules and build outputs
+node_modules
+.next
+out
+build
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore env files (prevent baking secrets into images)
+.env
+.env*.local
+
+# Ignore docker files
+Dockerfile
+.dockerignore
+
+# Ignore logs
+*.log
+npm-debug.log*
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
