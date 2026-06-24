@@ -87,6 +87,43 @@ Follow these steps to run the virtual environment locally:
 
 ---
 
+## 🐳 Docker Deployment
+
+You can build, run, and publish this application inside a Docker container.
+
+### 1. Build the Docker Image
+```bash
+docker build -t rfieq/portwindows:latest .
+```
+
+### 2. Run the Container
+
+#### Option A: Using OpenRouter (Cloud LLM)
+```bash
+docker run -d -p 3000:3000 \
+  --name portwindows \
+  -e LLM_PROVIDER=openrouter \
+  -e OPENROUTER_API_KEY=your_openrouter_api_key_here \
+  rfieq/portwindows:latest
+```
+
+#### Option B: Using Ollama (Local LLM)
+```bash
+docker run -d -p 3000:3000 \
+  --name portwindows \
+  -e LLM_PROVIDER=ollama \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  -e OLLAMA_MODEL=gemma2 \
+  rfieq/portwindows:latest
+```
+
+### 3. Push to Docker Hub
+```bash
+docker push rfieq/portwindows:latest
+```
+
+---
+
 ## ⚙️ Customization (Editing Portfolio Details)
 
 All information presented inside the portfolio is completely separated from the UI logic. To swap in your own biography, skills, projects, and social handles, open **[src/lib/data.ts](file:///c:/laragon/www/webapp/portwindows/src/lib/data.ts)** and edit the following structures:
