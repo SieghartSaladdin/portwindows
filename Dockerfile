@@ -19,6 +19,7 @@ COPY . .
 # Disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+RUN npx prisma generate
 RUN npm run build
 
 # Production image, copy all the files and run next
@@ -42,6 +43,7 @@ RUN chown nextjs:nodejs .next
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 USER nextjs
 

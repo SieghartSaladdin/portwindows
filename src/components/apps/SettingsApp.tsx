@@ -13,13 +13,12 @@ import {
   Smile
 } from 'lucide-react';
 import { useOSStore } from '@/lib/store';
-import { PROFILE } from '@/lib/data';
 
 type ActiveTab = 'system' | 'personalization' | 'accounts' | 'update';
 
 export function SettingsApp() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('system');
-  const { wallpaper, setWallpaper } = useOSStore();
+  const { wallpaper, setWallpaper, profile } = useOSStore();
 
   const wallpapers = [
     { id: 'default', name: 'Windows 11 Light (Blue)', className: 'bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950 border-indigo-400/50' },
@@ -111,15 +110,15 @@ export function SettingsApp() {
               </div>
               <div className="flex justify-between py-1.5 border-b border-white/5">
                 <span className="text-slate-400">Developer Profile</span>
-                <span>{PROFILE.name}</span>
+                <span>{profile.name}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-white/5">
                 <span className="text-slate-400">Current Role</span>
-                <span>{PROFILE.title}</span>
+                <span>{profile.title}</span>
               </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-slate-400">Current Location</span>
-                <span>{PROFILE.location}</span>
+                <span>{profile.location}</span>
               </div>
             </div>
           </div>
@@ -161,11 +160,11 @@ export function SettingsApp() {
             
             <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 mb-6">
               <div className="w-14 h-14 bg-win-accent rounded-full flex items-center justify-center text-white text-xl font-bold ring-2 ring-white/10">
-                {PROFILE.name.charAt(0)}
+                {profile.name.charAt(0)}
               </div>
               <div>
-                <h3 className="font-bold text-slate-100 text-sm">{PROFILE.name}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{PROFILE.email}</p>
+                <h3 className="font-bold text-slate-100 text-sm">{profile.name}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{profile.email}</p>
                 <span className="inline-block mt-2 px-2 py-0.5 bg-win-accent/20 border border-win-accent-light/35 text-slate-300 rounded text-[10px] font-medium">
                   Administrator
                 </span>

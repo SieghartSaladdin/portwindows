@@ -11,6 +11,9 @@ import { StartMenu } from '@/components/StartMenu';
 import { Taskbar } from '@/components/Taskbar';
 import { DesktopChatInput } from '@/components/ui/DesktopChatInput';
 import { TaskView } from '@/components/TaskView';
+import { QuickSettings } from '@/components/ui/QuickSettings';
+import { WidgetsPanel } from '@/components/ui/WidgetsPanel';
+import { LockScreen } from '@/components/ui/LockScreen';
 
 // Apps imports
 import { BioApp } from '@/components/apps/BioApp';
@@ -18,16 +21,22 @@ import { ProjectsApp } from '@/components/apps/ProjectsApp';
 import { TerminalApp } from '@/components/apps/TerminalApp';
 import { SettingsApp } from '@/components/apps/SettingsApp';
 import { FrierenApp } from '@/components/apps/FrierenApp';
+import { AdminApp } from './apps/AdminApp';
 
 // Desktop components
 import { FrierenPet } from '@/components/ui/FrierenPet';
 import { FernPet } from '@/components/ui/FernPet';
 import { StarkPet } from '@/components/ui/StarkPet';
 
-import { FileText, Folder, Terminal, Settings, Gamepad2 } from 'lucide-react';
+import { FileText, Folder, Terminal, Settings, Gamepad2, ShieldAlert } from 'lucide-react';
 
 export function Desktop() {
-  const { wallpaper, closeStartMenu, setIsChatInputOpen } = useOSStore();
+  const { wallpaper, closeStartMenu, setIsChatInputOpen, fetchDatabaseData } = useOSStore();
+
+  React.useEffect(() => {
+    fetchDatabaseData();
+  }, [fetchDatabaseData]);
+
   const { isOpen, position, handleContextMenu, closeMenu } = useContextMenu();
 
   // Map wallpaper ids to Tailwind background gradient styles
@@ -124,6 +133,16 @@ export function Desktop() {
         <FrierenApp />
       </WindowContainer>
 
+      <WindowContainer
+        id="admin"
+        title="Admin Dashboard"
+        defaultWidth={900}
+        defaultHeight={600}
+        icon={<ShieldAlert className="w-4 h-4 text-red-400" />}
+      >
+        <AdminApp />
+      </WindowContainer>
+
       {/* Frieren speech typing input bar */}
       <DesktopChatInput />
 
@@ -138,6 +157,15 @@ export function Desktop() {
 
       {/* System Taskbar */}
       <Taskbar />
+
+      {/* Quick Settings Panel Popover */}
+      <QuickSettings />
+
+      {/* Left-sliding Widgets Panel */}
+      <WidgetsPanel />
+
+      {/* Lock Screen Full-screen Sign-in Overlay */}
+      <LockScreen />
     </div>
   );
 }

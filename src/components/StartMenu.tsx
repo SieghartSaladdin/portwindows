@@ -12,8 +12,11 @@ import {
   FileCode2,
   User,
   ExternalLink,
-  Gamepad2
+  Gamepad2,
+  ShieldAlert,
+  ChevronLeft
 } from 'lucide-react';
+
 import { useOSStore } from '@/lib/store';
 import { PROFILE } from '@/lib/data';
 
@@ -37,10 +40,13 @@ export function StartMenu() {
     openWindow,
     recentlyOpened,
     startMenuSearchFocused,
-    setStartMenuSearchFocused
+    setStartMenuSearchFocused,
+    profile
   } = useOSStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<'pinned' | 'allApps'>('pinned');
+
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -96,9 +102,19 @@ export function StartMenu() {
     { id: 'projects', title: 'Projects', icon: <Folder className="w-6 h-6 text-amber-400" />, action: () => handleOpenApp('projects', 'Projects') },
     { id: 'terminal', title: 'Terminal', icon: <Terminal className="w-6 h-6 text-indigo-400" />, action: () => handleOpenApp('terminal', 'Command Prompt') },
     { id: 'settings', title: 'Settings', icon: <Settings className="w-6 h-6 text-blue-400" />, action: () => handleOpenApp('settings', 'Settings') },
+    { id: 'admin', title: 'Admin', icon: <ShieldAlert className="w-6 h-6 text-red-400" />, action: () => handleOpenApp('admin', 'Admin Dashboard') },
     { id: 'frieren', title: 'Frieren.exe', icon: <Gamepad2 className="w-6 h-6 text-rose-400" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
-    { id: 'github', title: 'GitHub', icon: <GitHubIcon className="w-6 h-6 text-slate-300" />, action: () => window.open('https://github.com', '_blank') },
-    { id: 'linkedin', title: 'LinkedIn', icon: <LinkedInIcon className="w-6 h-6 text-sky-400" />, action: () => window.open('https://linkedin.com', '_blank') },
+  ];
+
+  const allAppsList = [
+    { id: 'admin', title: 'Admin Dashboard', icon: <ShieldAlert className="w-5 h-5 text-red-400" />, action: () => handleOpenApp('admin', 'Admin Dashboard'), letter: 'A' },
+    { id: 'bio', title: 'Bio.txt', icon: <FileText className="w-5 h-5 text-emerald-400" />, action: () => handleOpenApp('bio', 'Bio.txt'), letter: 'B' },
+    { id: 'terminal', title: 'Command Prompt', icon: <Terminal className="w-5 h-5 text-indigo-400" />, action: () => handleOpenApp('terminal', 'Command Prompt'), letter: 'C' },
+    { id: 'frieren', title: 'Frieren.exe', icon: <Gamepad2 className="w-5 h-5 text-rose-400" />, action: () => handleOpenApp('frieren', 'Frieren.exe'), letter: 'F' },
+    { id: 'github', title: 'GitHub', icon: <GitHubIcon className="w-5 h-5 text-slate-300" />, action: () => { window.open(profile?.githubUrl || 'https://github.com', '_blank'); toggleStartMenu(); }, letter: 'G' },
+    { id: 'linkedin', title: 'LinkedIn', icon: <LinkedInIcon className="w-5 h-5 text-sky-400" />, action: () => { window.open(profile?.linkedinUrl || 'https://linkedin.com', '_blank'); toggleStartMenu(); }, letter: 'L' },
+    { id: 'projects', title: 'Projects', icon: <Folder className="w-5 h-5 text-amber-400" />, action: () => handleOpenApp('projects', 'Projects'), letter: 'P' },
+    { id: 'settings', title: 'Settings', icon: <Settings className="w-5 h-5 text-blue-400" />, action: () => handleOpenApp('settings', 'Settings'), letter: 'S' },
   ];
 
   // Map app IDs to visual metadata for dynamic recently opened list
@@ -108,7 +124,9 @@ export function StartMenu() {
     terminal: { title: 'Command Prompt', desc: 'System Command Prompt', icon: <Terminal className="w-5 h-5 text-indigo-400" />, action: () => handleOpenApp('terminal', 'Command Prompt') },
     settings: { title: 'Settings', desc: 'System Settings App', icon: <Settings className="w-5 h-5 text-blue-400" />, action: () => handleOpenApp('settings', 'Settings') },
     frieren: { title: 'Frieren.exe', desc: 'Character Control App', icon: <Gamepad2 className="w-5 h-5 text-rose-400" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
+    admin: { title: 'Admin Dashboard', desc: 'System Administrator Control', icon: <ShieldAlert className="w-5 h-5 text-red-400" />, action: () => handleOpenApp('admin', 'Admin Dashboard') },
   };
+
 
   const recentItems = recentlyOpened
     .map((id) => appMap[id])
@@ -117,7 +135,9 @@ export function StartMenu() {
 
   // Search catalog with keywords, categories, and detailed descriptions
   const allSearchableItems = [
+    { id: 'admin', title: 'Admin Dashboard', desc: 'CRUD admin dashboard with PIN lock to edit profile details, projects, skills, and work experiences.', category: 'Apps', icon: <ShieldAlert className="w-5 h-5 text-red-400" />, action: () => handleOpenApp('admin', 'Admin Dashboard') },
     { id: 'bio', title: 'Bio.txt', desc: 'Read Frieren\'s personal bio, background, and developer profile information.', category: 'Apps', icon: <FileText className="w-5 h-5 text-emerald-400" />, action: () => handleOpenApp('bio', 'Bio.txt') },
+
     { id: 'projects', title: 'Projects Folder', desc: 'Browse developed developer projects, repositories, and technical skills.', category: 'Apps', icon: <Folder className="w-5 h-5 text-amber-400" />, action: () => handleOpenApp('projects', 'Projects') },
     { id: 'terminal', title: 'Command Prompt (Terminal)', desc: 'Run OS terminal commands, file utilities, and system commands.', category: 'Apps', icon: <Terminal className="w-5 h-5 text-indigo-400" />, action: () => handleOpenApp('terminal', 'Command Prompt') },
     { id: 'settings', title: 'Settings Manager', desc: 'Customize simulated desktop wallpapers, themes, and audio features.', category: 'Apps', icon: <Settings className="w-5 h-5 text-blue-400" />, action: () => handleOpenApp('settings', 'Settings') },
@@ -127,8 +147,8 @@ export function StartMenu() {
     { id: 'settings-volume', title: 'Adjust Character Scroll Volume', desc: 'Modify typing blip sound volume and toggle sound limits.', category: 'Settings', icon: <Settings className="w-5 h-5 text-rose-400" />, action: () => handleOpenApp('settings', 'Settings') },
     { id: 'frieren-spawn', title: 'Toggle Character Spawn Status', desc: 'Enable or disable desktop pet animations in Frieren.exe.', category: 'Settings', icon: <Gamepad2 className="w-5 h-5 text-emerald-400" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
 
-    { id: 'github', title: 'GitHub Profile Link', desc: 'Launch browser to view Frieren\'s software development repositories on github.com.', category: 'Web', icon: <GitHubIcon className="w-5 h-5 text-slate-300" />, action: () => window.open('https://github.com', '_blank') },
-    { id: 'linkedin', title: 'LinkedIn Profile Link', desc: 'Launch browser to view Frieren\'s professional networking profile on linkedin.com.', category: 'Web', icon: <LinkedInIcon className="w-5 h-5 text-sky-400" />, action: () => window.open('https://linkedin.com', '_blank') },
+    { id: 'github', title: 'GitHub Profile Link', desc: 'Launch browser to view Frieren\'s software development repositories on github.com.', category: 'Web', icon: <GitHubIcon className="w-5 h-5 text-slate-300" />, action: () => window.open(profile?.githubUrl || 'https://github.com', '_blank') },
+    { id: 'linkedin', title: 'LinkedIn Profile Link', desc: 'Launch browser to view Frieren\'s professional networking profile on linkedin.com.', category: 'Web', icon: <LinkedInIcon className="w-5 h-5 text-sky-400" />, action: () => window.open(profile?.linkedinUrl || 'https://linkedin.com', '_blank') },
   ];
 
   const searchResults = allSearchableItems.filter((item) =>
@@ -241,12 +261,64 @@ export function StartMenu() {
                 <div className="text-[10px] text-slate-500">Try searching for other apps or settings.</div>
               </div>
             )
+          ) : viewMode === 'allApps' ? (
+            // All Apps alphabetical scrollable view
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex justify-between items-center mb-4 text-xs font-semibold text-slate-200">
+                <button
+                  onClick={() => setViewMode('pinned')}
+                  className="flex items-center gap-1 hover:text-white text-slate-400 transition cursor-default"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">All Apps</span>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 max-h-[380px] scrollbar-thin">
+                {Object.entries(
+                  allAppsList.reduce((acc, app) => {
+                    const letter = app.letter;
+                    if (!acc[letter]) acc[letter] = [];
+                    acc[letter].push(app);
+                    return acc;
+                  }, {} as Record<string, typeof allAppsList>)
+                )
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([letter, apps]) => (
+                    <div key={letter} className="flex flex-col gap-0.5">
+                      <div className="text-[10px] font-bold text-win-accent-light px-3 py-1 bg-white/5 rounded-md self-start mb-1 select-none">
+                        {letter}
+                      </div>
+                      <div className="flex flex-col gap-0.5 pl-1">
+                        {apps.map((app) => (
+                          <button
+                            key={app.id}
+                            onClick={app.action}
+                            className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 text-left transition cursor-default group"
+                          >
+                            <div className="p-1 rounded bg-black/15 group-active:scale-95 transition-transform text-slate-400 group-hover:text-white">
+                              {app.icon}
+                            </div>
+                            <span className="text-[11.5px] text-slate-300 group-hover:text-white font-medium">
+                              {app.title}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
           ) : (
             // Default Start Menu (Pinned & Recently Opened)
             <>
               <div className="flex justify-between items-center mb-4 text-xs font-semibold text-slate-200">
                 <span>Pinned</span>
-                <button className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-slate-300 transition">
+                <button 
+                  onClick={() => setViewMode('allApps')}
+                  className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-slate-300 transition cursor-default"
+                >
                   All apps
                 </button>
               </div>

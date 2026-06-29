@@ -14,7 +14,8 @@ import {
   Menu,
   ChevronRight
 } from 'lucide-react';
-import { PROJECTS, Project } from '@/lib/data';
+import { Project } from '@/lib/data';
+import { useOSStore } from '@/lib/store';
 
 const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={props.className}>
@@ -23,12 +24,13 @@ const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export function ProjectsApp() {
+  const { projects } = useOSStore();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredProjects = PROJECTS.filter((p) =>
+  const filteredProjects = projects.filter((p) =>
     p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
+    p.tags.some((t: string) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (

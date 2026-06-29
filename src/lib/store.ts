@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { PROFILE, PROJECTS, SKILLS, EXPERIENCES } from './data';
 
 export interface WindowState {
   id: string;
@@ -7,6 +8,12 @@ export interface WindowState {
   isMinimized: boolean;
   isMaximized: boolean;
   zIndex: number;
+  width?: number;
+  height?: number;
+  x?: number;
+  y?: number;
+  isSnapped?: boolean;
+  snapPosition?: 'left' | 'right' | 'top' | 'bottom' | null;
 }
 
 interface OSStore {
@@ -34,6 +41,17 @@ interface OSStore {
   startMenuSearchFocused: boolean;
   taskViewOpen: boolean;
   
+  // Dynamic Data States
+  profile: { name: string; title: string; location: string; email: string; bio: string; githubUrl?: string; linkedinUrl?: string };
+  projects: any[];
+  skills: any[];
+  experiences: any[];
+  
+  // System Toggles
+  isLocked: boolean;
+  isWidgetsOpen: boolean;
+  isQuickSettingsOpen: boolean;
+  
   // Actions
   openWindow: (id: string, title?: string) => void;
   closeWindow: (id: string) => void;
@@ -54,6 +72,29 @@ interface OSStore {
   setStartMenuSearchFocused: (focused: boolean) => void;
   toggleTaskView: () => void;
   closeTaskView: () => void;
+  
+  // Dynamic Data Actions
+  fetchDatabaseData: () => Promise<void>;
+  setProfile: (profile: any) => void;
+  setProjects: (projects: any[]) => void;
+  setSkills: (skills: any[]) => void;
+  setExperiences: (experiences: any[]) => void;
+  
+  // Window geometry actions
+  updateWindowPosition: (id: string, x: number, y: number) => void;
+  updateWindowSize: (id: string, width: number, height: number) => void;
+  setWindowSnap: (id: string, snapped: boolean, snapPosition?: 'left' | 'right' | 'top' | 'bottom' | null) => void;
+  
+  // System toggle setters/actions
+  setIsLocked: (locked: boolean) => void;
+  setIsWidgetsOpen: (open: boolean) => void;
+  setIsQuickSettingsOpen: (open: boolean) => void;
+  toggleQuickSettings: () => void;
+  closeQuickSettings: () => void;
+  toggleWidgets: () => void;
+  closeWidgets: () => void;
+  lockScreen: () => void;
+  unlockScreen: () => void;
 }
 
 const initialWindows: Record<string, WindowState> = {
@@ -62,6 +103,7 @@ const initialWindows: Record<string, WindowState> = {
   terminal: { id: 'terminal', title: 'Command Prompt', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
   settings: { id: 'settings', title: 'Settings', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
   frieren: { id: 'frieren', title: 'Frieren.exe', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
+  admin: { id: 'admin', title: 'Admin Dashboard', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
 };
 
 export const useOSStore = create<OSStore>((set, get) => ({
@@ -89,6 +131,17 @@ export const useOSStore = create<OSStore>((set, get) => ({
   startMenuSearchFocused: false,
   taskViewOpen: false,
 
+  // Initial Dynamic Data
+  profile: PROFILE,
+  projects: PROJECTS,
+  skills: SKILLS,
+  experiences: EXPERIENCES,
+
+  // System toggles initial state
+  isLocked: true,
+  isWidgetsOpen: false,
+  isQuickSettingsOpen: false,
+
   openWindow: (id, title) => {
     const nextZIndex = get().zIndexCounter + 1;
     set((state) => {
@@ -115,7 +168,7 @@ export const useOSStore = create<OSStore>((set, get) => ({
         },
         focusedWindowId: id,
         zIndexCounter: nextZIndex,
-        startMenuOpen: false, // Close start menu on app opening
+        startMenuOpen: false,
         recentlyOpened: updatedRecently,
         taskViewOpen: false,
       };
@@ -134,7 +187,6 @@ export const useOSStore = create<OSStore>((set, get) => ({
         };
       }
       
-      // Calculate new focused window if needed
       let nextFocused: string | null = null;
       const openActiveWindows = Object.values(updatedWindows)
         .filter((w) => w.isOpen && !w.isMinimized)
@@ -161,7 +213,6 @@ export const useOSStore = create<OSStore>((set, get) => ({
         };
       }
 
-      // Find next window to focus
       let nextFocused: string | null = null;
       const openActiveWindows = Object.values(updatedWindows)
         .filter((w) => w.isOpen && !w.isMinimized && w.id !== id)
@@ -188,7 +239,6 @@ export const useOSStore = create<OSStore>((set, get) => ({
         };
       }
       
-      // Maximize also focuses the window
       const nextZIndex = state.zIndexCounter + 1;
       if (updatedWindows[id]) {
         updatedWindows[id].zIndex = nextZIndex;
@@ -277,5 +327,107 @@ export const useOSStore = create<OSStore>((set, get) => ({
   },
   closeTaskView: () => {
     set({ taskViewOpen: false });
+  },
+
+  // Dynamic Data Actions Implementation
+  fetchDatabaseData: async () => {
+    try {
+      const res = await fetch('/api/portfolio');
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const data = await res.json();
+      if (!data || (!data.profile && !data.projects?.length)) {
+        throw new Error('API returned empty portfolio');
+      }
+      set({
+        profile: data.profile || PROFILE,
+        projects: data.projects || PROJECTS,
+        skills: data.skills || SKILLS,
+        experiences: data.experiences || EXPERIENCES,
+      });
+    } catch (error) {
+      console.warn('Failed to fetch dynamic portfolio, using static fallback:', error);
+      set({
+        profile: PROFILE,
+        projects: PROJECTS,
+        skills: SKILLS,
+        experiences: EXPERIENCES,
+      });
+    }
+  },
+  setProfile: (profile) => set({ profile }),
+  setProjects: (projects) => set({ projects }),
+  setSkills: (skills) => set({ skills }),
+  setExperiences: (experiences) => set({ experiences }),
+
+  // Window geometry action implementations
+  updateWindowPosition: (id, x, y) => {
+    set((state) => {
+      const w = state.windows[id];
+      if (!w) return state;
+      return {
+        windows: {
+          ...state.windows,
+          [id]: { ...w, x, y }
+        }
+      };
+    });
+  },
+  updateWindowSize: (id, width, height) => {
+    set((state) => {
+      const w = state.windows[id];
+      if (!w) return state;
+      return {
+        windows: {
+          ...state.windows,
+          [id]: { ...w, width, height }
+        }
+      };
+    });
+  },
+  setWindowSnap: (id, snapped, snapPosition = null) => {
+    set((state) => {
+      const w = state.windows[id];
+      if (!w) return state;
+      return {
+        windows: {
+          ...state.windows,
+          [id]: { ...w, isSnapped: snapped, snapPosition }
+        }
+      };
+    });
+  },
+
+  // System toggle setters implementation
+  setIsLocked: (locked) => set({ isLocked: locked }),
+  setIsWidgetsOpen: (open) => set({ isWidgetsOpen: open }),
+  setIsQuickSettingsOpen: (open) => set({ isQuickSettingsOpen: open }),
+
+  toggleQuickSettings: () => {
+    set((state) => ({ 
+      isQuickSettingsOpen: !state.isQuickSettingsOpen,
+      startMenuOpen: false,
+      taskViewOpen: false,
+      isWidgetsOpen: false
+    }));
+  },
+  closeQuickSettings: () => {
+    set({ isQuickSettingsOpen: false });
+  },
+  toggleWidgets: () => {
+    set((state) => ({ 
+      isWidgetsOpen: !state.isWidgetsOpen,
+      startMenuOpen: false,
+      taskViewOpen: false,
+      isQuickSettingsOpen: false
+    }));
+  },
+  closeWidgets: () => {
+    set({ isWidgetsOpen: false });
+  },
+  lockScreen: () => {
+    set({ isLocked: true });
+  },
+  unlockScreen: () => {
+    set({ isLocked: false });
   },
 }));

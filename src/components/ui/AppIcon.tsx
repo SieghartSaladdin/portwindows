@@ -18,7 +18,7 @@ interface AppIconProps {
 }
 
 export function AppIcon({ icon }: AppIconProps) {
-  const openWindow = useOSStore((state) => state.openWindow);
+  const { openWindow, profile } = useOSStore();
   const [isSelected, setIsSelected] = useState(false);
 
   const getIcon = () => {
@@ -43,8 +43,16 @@ export function AppIcon({ icon }: AppIconProps) {
   const handleAction = () => {
     if (icon.action === 'openApp' && icon.appId) {
       openWindow(icon.appId, icon.title);
-    } else if (icon.action === 'openLink' && icon.url) {
-      window.open(icon.url, '_blank');
+    } else if (icon.action === 'openLink') {
+      let targetUrl = icon.url;
+      if (icon.id === 'github' && profile?.githubUrl) {
+        targetUrl = profile.githubUrl;
+      } else if (icon.id === 'linkedin' && profile?.linkedinUrl) {
+        targetUrl = profile.linkedinUrl;
+      }
+      if (targetUrl) {
+        window.open(targetUrl, '_blank');
+      }
     }
   };
 

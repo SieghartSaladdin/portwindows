@@ -1,14 +1,17 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { PROJECTS, SKILLS, PROFILE } from '@/lib/data';
+import { useOSStore } from '@/lib/store';
 
 interface ConsoleLine {
   text: string;
   type: 'input' | 'output' | 'error' | 'success';
 }
 
+const COMMAND_LIST = ['help', 'about', 'projects', 'skills', 'contact', 'clear', 'neofetch'];
+
 export function TerminalApp() {
+  const { profile, projects, skills } = useOSStore();
   const [history, setHistory] = useState<ConsoleLine[]>([
     { text: 'Microsoft Windows [Version 10.0.22621.1702]', type: 'output' },
     { text: '(c) Microsoft Corporation. All rights reserved.', type: 'output' },
@@ -17,6 +20,12 @@ export function TerminalApp() {
     { text: '', type: 'output' },
   ]);
   const [inputVal, setInputVal] = useState('');
+  
+  // CLI Command History
+  const [cmdHistory, setCmdHistory] = useState<string[]>([]);
+  const [historyIdx, setHistoryIdx] = useState(-1);
+  const tempInput = useRef('');
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -32,10 +41,64 @@ export function TerminalApp() {
     focusInput();
   }, []);
 
+  const handleAutocomplete = () => {
+    const query = inputVal.toLowerCase().trim();
+    if (!query) return;
+    const matches = COMMAND_LIST.filter(c => c.startsWith(query));
+    if (matches.length > 0) {
+      setInputVal(matches[0]);
+    }
+  };
+
+  const handleHistoryUp = () => {
+    if (cmdHistory.length === 0) return;
+    let nextIdx = historyIdx;
+    if (historyIdx === -1) {
+      tempInput.current = inputVal;
+      nextIdx = cmdHistory.length - 1;
+    } else if (historyIdx > 0) {
+      nextIdx = historyIdx - 1;
+    }
+    setHistoryIdx(nextIdx);
+    setInputVal(cmdHistory[nextIdx]);
+  };
+
+  const handleHistoryDown = () => {
+    if (historyIdx === -1) return;
+    let nextIdx = historyIdx + 1;
+    if (nextIdx >= cmdHistory.length) {
+      setHistoryIdx(-1);
+      setInputVal(tempInput.current);
+    } else {
+      setHistoryIdx(nextIdx);
+      setInputVal(cmdHistory[nextIdx]);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      handleAutocomplete();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      handleHistoryUp();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      handleHistoryDown();
+    }
+  };
+
   const handleCommandSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cmd = inputVal.trim();
     if (!cmd) return;
+
+    // Add command to CLI navigation history (avoid duplicates)
+    setCmdHistory(prev => {
+      if (prev.length > 0 && prev[prev.length - 1] === cmd) return prev;
+      return [...prev, cmd];
+    });
+    setHistoryIdx(-1);
 
     const newHistory = [...history, { text: `C:\\Users\\Visitor> ${cmd}`, type: 'input' as const }];
     const cleanCmd = cmd.toLowerCase();
@@ -60,30 +123,30 @@ export function TerminalApp() {
         return;
       case 'about':
         outputLines = [
-          { text: `${PROFILE.name} - ${PROFILE.title}`, type: 'success' },
-          { text: PROFILE.bio, type: 'output' },
+          { text: `${profile.name} - ${profile.title}`, type: 'success' },
+          { text: profile.bio, type: 'output' },
         ];
         break;
       case 'projects':
-        outputLines = PROJECTS.flatMap((p) => [
+        outputLines = projects.flatMap((p) => [
           { text: `\n📂 ${p.title}`, type: 'success' as const },
           { text: `   Description: ${p.description}`, type: 'output' as const },
-          { text: `   Tech Stack:  ${p.tags.join(', ')}`, type: 'output' as const },
+          { text: `   Tech Stack:  ${Array.isArray(p.tags) ? p.tags.join(', ') : p.tags}`, type: 'output' as const },
           { text: p.githubUrl ? `   Repository:  ${p.githubUrl}` : '', type: 'output' as const },
         ]).filter((line) => line.text !== '');
         break;
       case 'skills':
-        outputLines = SKILLS.flatMap((grp) => [
+        outputLines = skills.flatMap((grp) => [
           { text: `\n🛠️ ${grp.category}`, type: 'success' as const },
-          { text: `   ${grp.skills.join(' | ')}`, type: 'output' as const },
+          { text: `   ${Array.isArray(grp.skills) ? grp.skills.join(' | ') : grp.skills}`, type: 'output' as const },
         ]);
         break;
       case 'contact':
         outputLines = [
           { text: 'Connect with me:', type: 'success' },
-          { text: `   Email:     ${PROFILE.email}`, type: 'output' },
-          { text: '   GitHub:    https://github.com', type: 'output' },
-          { text: '   LinkedIn:  https://linkedin.com', type: 'output' },
+          { text: `   Email:     ${profile.email}`, type: 'output' },
+          { text: `   GitHub:    ${profile.githubUrl || 'https://github.com'}`, type: 'output' },
+          { text: `   LinkedIn:  ${profile.linkedinUrl || 'https://linkedin.com'}`, type: 'output' },
         ];
         break;
       case 'neofetch':
@@ -94,8 +157,8 @@ export function TerminalApp() {
           { text: '       `---`       Kernel: Next.js App Router V16', type: 'output' },
           { text: '                   Shell: Custom React CLI V1.0', type: 'output' },
           { text: '                   Design: Glassmorphism / Tailwind v4', type: 'output' },
-          { text: `                   Developer: ${PROFILE.name}`, type: 'output' },
-          { text: `                   Role: ${PROFILE.title}`, type: 'output' },
+          { text: `                   Developer: ${profile.name}`, type: 'output' },
+          { text: `                   Role: ${profile.title}`, type: 'output' },
         ];
         break;
       default:
@@ -140,6 +203,7 @@ export function TerminalApp() {
           type="text"
           value={inputVal}
           onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-white font-mono text-xs select-text"
           autoFocus
         />

@@ -28,7 +28,11 @@ export function Taskbar() {
     focusWindow,
     setStartMenuSearchFocused,
     toggleTaskView,
-    taskViewOpen
+    taskViewOpen,
+    isQuickSettingsOpen,
+    toggleQuickSettings,
+    isWidgetsOpen,
+    toggleWidgets
   } = useOSStore();
 
   const { time, date, fullDate } = useDateTime();
@@ -59,12 +63,21 @@ export function Taskbar() {
       {/* Invisible spacer for left aligning */}
       <div className="w-[180px] hidden sm:flex items-center gap-3">
         {/* Left indicators (e.g. Widgets) */}
-        <div className="text-xs text-slate-300 hover:bg-white/10 px-2 py-1 rounded cursor-default transition">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleWidgets();
+          }}
+          className={`text-xs text-slate-300 hover:bg-white/10 px-2.5 py-1 rounded cursor-default transition ${
+            isWidgetsOpen ? 'bg-white/10 text-white' : ''
+          }`}
+          title="Widgets Board"
+        >
           <div className="flex items-center gap-1.5 text-[11px]">
-            <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
-            <span>Cloudy 68°F</span>
+            <span className="w-2 bg-sky-400 rounded-full animate-pulse h-2"></span>
+            <span className="font-semibold text-slate-200">Cloudy 68°F</span>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Centered Taskbar Icons */}
@@ -160,14 +173,20 @@ export function Taskbar() {
       {/* System Tray (Right Aligned) */}
       <div className="w-[180px] flex items-center justify-end gap-1">
         {/* Status Indicators */}
-        <div 
-          className="flex items-center gap-2.5 px-2.5 py-1 rounded-[4px] hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-default"
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleQuickSettings();
+          }}
+          className={`flex items-center gap-2.5 px-2.5 py-1 rounded-[4px] hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-default ${
+            isQuickSettingsOpen ? 'bg-white/10 text-white' : ''
+          }`}
           title="Network, Volume, and Battery status"
         >
           <Wifi className="w-3.5 h-3.5" />
           <Volume2 className="w-3.5 h-3.5" />
           <Battery className="w-3.5 h-3.5" />
-        </div>
+        </button>
 
         {/* Date and Time */}
         <button
