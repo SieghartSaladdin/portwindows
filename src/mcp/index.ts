@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import http from "http";
 import { parse } from "url";
@@ -371,12 +371,8 @@ async function main() {
   const isSseMode = process.argv.includes("--sse");
 
   if (isSseMode) {
-    // Expose as network-accessible HTTP SSE service
-    let transport: SSEServerTransport | undefined;
-
+    // Expose as network-accessible HTTP Streamable service matching latest specs
     const serverHttp = http.createServer(async (req, res) => {
-      const parsedUrl = parse(req.url || "", true);
-
       // Setup CORS headers
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -388,23 +384,17 @@ async function main() {
         return;
       }
 
-      if (parsedUrl.pathname === "/sse" && req.method === "GET") {
-        transport = new SSEServerTransport("/messages", res);
-        await server.connect(transport);
-        
-        req.on("close", () => {
-          console.error("SSE client connection closed");
+      const parsedUrl = parse(req.url || "", true);
+      if (parsedUrl.pathname === "/mcp") {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+          enableJsonResponse: true,
         });
-        return;
-      }
 
-      if (parsedUrl.pathname === "/messages" && req.method === "POST") {
-        if (!transport) {
-          res.writeHead(400, { "Content-Type": "text/plain" });
-          res.end("SSE connection not established yet");
-          return;
-        }
-        await transport.handlePostMessage(req, res);
+        res.on("close", () => transport.close());
+
+        await server.connect(transport);
+        await transport.handleRequest(req, res);
         return;
       }
 
@@ -414,9 +404,7 @@ async function main() {
 
     const PORT = parseInt(process.env.MCP_PORT || "3001", 10);
     serverHttp.listen(PORT, "0.0.0.0", () => {
-      console.error(`Portfolio MCP Server running on HTTP SSE at http://localhost:${PORT}`);
-      console.error(`- Connection stream: http://localhost:${PORT}/sse`);
-      console.error(`- Messages endpoint: http://localhost:${PORT}/messages`);
+      console.error(`Portfolio MCP Server running on HTTP Streamable at http://localhost:${PORT}/mcp`);
     });
   } else {
     // Default stdio transport for local AI clients (Claude Desktop, Cursor, etc.)

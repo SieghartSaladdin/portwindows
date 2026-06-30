@@ -16,13 +16,21 @@ Exposes the following tools to the AI assistant:
 
 ## 🚀 Setup & Integration
 
-The MCP server is integrated **directly inside your Next.js application**! 
-When you run your dev server (`npm run dev`) or run it in Docker, the MCP endpoints are automatically online on the same port:
+The MCP server is built using the official **Streamable HTTP transport** standard. This combines both SSE and POST messages under a single, unified HTTP endpoint!
 
-- **SSE Stream endpoint**: `http://localhost:3000/api/mcp`
-- **Messages POST endpoint**: `http://localhost:3000/api/mcp-messages`
+You have two ways to run and connect to it:
 
-This means you do **not** need to run any separate server commands or manage other ports.
+### Option A: Built-in to the Website (Port 3000)
+When you run your Next.js dev server (`npm run dev`) or run it in Docker, the MCP endpoint is automatically active:
+- **Unified Endpoint URL**: `http://localhost:3000/api/mcp`
+- *(No separate commands or ports to manage!)*
+
+### Option B: Standalone Background Server (Port 3001)
+If you prefer running it independently of the Next.js frontend, run:
+```bash
+npm run mcp:sse
+```
+- **Unified Endpoint URL**: `http://localhost:3001/mcp`
 
 ---
 
@@ -34,7 +42,7 @@ This means you do **not** need to run any separate server commands or manage oth
 3. Fill in:
    - **Name**: `portwindows-mcp`
    - **Type**: `SSE`
-   - **URL**: `http://localhost:3000/api/mcp`
+   - **URL**: `http://localhost:3000/api/mcp` (or `http://localhost:3001/mcp` if running Option B).
 4. Click **Save**.
 
 ---
@@ -44,13 +52,13 @@ This means you do **not** need to run any separate server commands or manage oth
 2. Add a new MCP server:
    - **Name**: `portwindows-mcp`
    - **Type**: `sse`
-   - **Endpoint**: `http://localhost:3000/api/mcp`
+   - **Endpoint**: `http://localhost:3000/api/mcp` (or `http://localhost:3001/mcp` if running Option B).
 3. Click **Add**.
 
 ---
 
 ### 3. In VS Code Cline (Extension)
-Cline runs locally inside your VS Code window and can spawn local processes directly. Click **Configure MCP Servers** in Cline's settings and add:
+In Cline's settings, click **Configure MCP Servers** and add:
 ```json
 {
   "mcpServers": {
@@ -95,7 +103,7 @@ Add the following entry:
 
 ## 🐋 Running in Docker
 
-If you build and run the project inside Docker, the MCP server runs automatically on the same container port!
+If you run the project inside Docker, the MCP server runs automatically on the same container port!
 
 To ensure changes made by the AI persist when using Docker, mount the `prisma` directory as a volume. For example:
 ```bash

@@ -1,10 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { mcpServer } from "@/lib/mcp";
-
-const globalForMcp = globalThis as unknown as {
-  mcpTransport?: SSEServerTransport;
-};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // CORS setup
@@ -17,21 +13,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
-  if (req.method !== "GET") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
+  console.error(`[MCP] Request received: ${req.method} ${req.url}`);
 
-  // Setup SSE stream headers
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
-  res.setHeader("Connection", "keep-alive");
+  // Create the streamable HTTP transport matching the latest specification
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
 
-  console.error("[MCP] SSE client connection request received");
+  res.on("close", () => transport.close());
 
-  // Create SSE transport pointing to the POST messages endpoint in Next.js
-  const transport = new SSEServerTransport("/api/mcp-messages", res);
-  globalForMcp.mcpTransport = transport;
-
+  // Connect the global server instance to this transport connection
   await mcpServer.connect(transport);
+
+  // Process the request stream
+  await transport.handleRequest(req, res);
 }
+
+// Disable body parsing so that standard Node.js request stream remains intact 
+// and can be read directly by the StreamableHTTPServerTransport.handleRequest function.
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
