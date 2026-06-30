@@ -1,6 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { z } from "zod";
+import http from "http";
+import { parse } from "url";
 import { prisma } from "../lib/db";
 
 // Initialize the MCP server
@@ -60,7 +63,6 @@ server.tool(
     try {
       let profile = await prisma.profile.findFirst();
       if (!profile) {
-        // Create initial record if it doesn't exist
         const newProfile = await prisma.profile.create({
           data: {
             id: "1",
@@ -130,7 +132,7 @@ server.tool(
         data: {
           title: args.title,
           description: args.description,
-          tags: args.tags, // JSON array field in sqlite
+          tags: args.tags,
           githubUrl: args.githubUrl || null,
           liveUrl: args.liveUrl || null,
         },
@@ -220,7 +222,7 @@ server.tool(
       const newSkill = await prisma.skill.create({
         data: {
           category: args.category,
-          skills: args.skills, // JSON array
+          skills: args.skills,
         },
       });
       return jsonResponse({ message: "Skill category created successfully", skill: newSkill });
@@ -306,7 +308,7 @@ server.tool(
           role: args.role,
           company: args.company,
           duration: args.duration,
-          description: args.description, // JSON array
+          description: args.description,
         },
       });
       return jsonResponse({ message: "Experience created successfully", experience: newExperience });
@@ -363,12 +365,65 @@ server.tool(
 );
 
 // ----------------------------------------------------
-// Start Server using stdio transport
+// Startup logic supporting both stdio and HTTP SSE
 // ----------------------------------------------------
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Portfolio MCP Server running on stdio transport");
+  const isSseMode = process.argv.includes("--sse");
+
+  if (isSseMode) {
+    // Expose as network-accessible HTTP SSE service
+    let transport: SSEServerTransport | undefined;
+
+    const serverHttp = http.createServer(async (req, res) => {
+      const parsedUrl = parse(req.url || "", true);
+
+      // Setup CORS headers
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      if (parsedUrl.pathname === "/sse" && req.method === "GET") {
+        transport = new SSEServerTransport("/messages", res);
+        await server.connect(transport);
+        
+        req.on("close", () => {
+          console.error("SSE client connection closed");
+        });
+        return;
+      }
+
+      if (parsedUrl.pathname === "/messages" && req.method === "POST") {
+        if (!transport) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("SSE connection not established yet");
+          return;
+        }
+        await transport.handlePostMessage(req, res);
+        return;
+      }
+
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not Found");
+    });
+
+    const PORT = parseInt(process.env.MCP_PORT || "3001", 10);
+    serverHttp.listen(PORT, "0.0.0.0", () => {
+      console.error(`Portfolio MCP Server running on HTTP SSE at http://localhost:${PORT}`);
+      console.error(`- Connection stream: http://localhost:${PORT}/sse`);
+      console.error(`- Messages endpoint: http://localhost:${PORT}/messages`);
+    });
+  } else {
+    // Default stdio transport for local AI clients (Claude Desktop, Cursor, etc.)
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error("Portfolio MCP Server running on stdio transport");
+  }
 }
 
 main().catch((err) => {
