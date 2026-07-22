@@ -1,42 +1,44 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { 
-  FileText, 
-  Folder, 
-  Terminal, 
-  Settings, 
-  Globe,
-  ExternalLink,
-  Gamepad2
-} from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { useOSStore } from '@/lib/store';
 import { DesktopIcon } from '@/lib/data';
+import { 
+  DoodleBioIcon, 
+  DoodleFolderIcon, 
+  DoodleTerminalIcon, 
+  DoodleSettingsIcon, 
+  DoodlePetIcon, 
+  DoodleLinkIcon,
+  DoodleAdminIcon
+} from '@/components/ui/DoodleIcons';
 
 interface AppIconProps {
   icon: DesktopIcon;
 }
 
 export function AppIcon({ icon }: AppIconProps) {
-  const { openWindow, profile } = useOSStore();
+  const { openWindow, profile, themeMode } = useOSStore();
   const [isSelected, setIsSelected] = useState(false);
 
   const getIcon = () => {
-    const className = "w-9 h-9 transition-transform group-hover:scale-[1.03] select-none";
+    const className = "w-11 h-11 transition-transform group-hover:scale-110 select-none filter drop-shadow-[2px_3px_0px_rgba(0,0,0,0.5)]";
     switch (icon.iconType) {
       case 'notepad':
-        return <FileText className={`${className} text-emerald-400`} />;
+        return <DoodleBioIcon className={className} />;
       case 'folder':
-        return <Folder className={`${className} text-amber-400`} />;
+        return <DoodleFolderIcon className={className} />;
       case 'terminal':
-        return <Terminal className={`${className} text-indigo-400`} />;
+        return <DoodleTerminalIcon className={className} />;
       case 'settings':
-        return <Settings className={`${className} text-blue-400`} />;
+        return <DoodleSettingsIcon className={className} />;
       case 'game':
-        return <Gamepad2 className={`${className} text-rose-400`} />;
+        return <DoodlePetIcon className={className} />;
       case 'browser':
       default:
-        return <Globe className={`${className} text-sky-400`} />;
+        if (icon.id === 'admin') return <DoodleAdminIcon className={className} />;
+        return <DoodleLinkIcon className={className} />;
     }
   };
 
@@ -56,14 +58,11 @@ export function AppIcon({ icon }: AppIconProps) {
     }
   };
 
-  // For touch devices, single tap is sufficient. For desktop, double click is windows-authentic.
-  // We can track last click time to simulate double click.
   const lastClickTimeRef = useRef(0);
   const handlePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     setIsSelected(true);
     
-    // Clear selection on other items by letting document click handle it
     const clearSelection = () => {
       setIsSelected(false);
       document.removeEventListener('pointerdown', clearSelection);
@@ -87,21 +86,32 @@ export function AppIcon({ icon }: AppIconProps) {
     <div
       onPointerDown={handlePointerDown}
       className={`
-        flex flex-col items-center justify-center w-18 h-18 rounded-md p-1.5 border border-transparent cursor-default select-none group
+        flex flex-col items-center justify-center w-23 min-h-[92px] p-2 rounded-2xl cursor-pointer select-none group font-doodle
+        transition-all duration-150 relative border-2
         ${isSelected 
-          ? 'bg-white/10 border-white/20 shadow-md' 
-          : 'hover:bg-white/5 hover:border-white/5'
+          ? 'bg-[#fffdfa]/95 text-[#2d2a26] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] scale-105' 
+          : 'bg-transparent border-transparent text-white hover:bg-[#fffdfa]/20 hover:backdrop-blur-xs hover:border-dashed hover:border-amber-200/60 hover:scale-105'
         }
-        transition-all duration-150
       `}
     >
-      <div className="relative">
+      <div className="relative flex items-center justify-center">
         {getIcon()}
         {icon.action === 'openLink' && (
-          <ExternalLink className="absolute bottom-0 right-0 w-3 h-3 text-slate-300 bg-black/60 rounded-full p-[1px] border border-white/10" />
+          <ExternalLink className="absolute -bottom-1 -right-1 w-4 h-4 text-[#2d2a26] bg-amber-200 rounded-full p-[1px] border border-[#2d2a26] shadow-sm" />
         )}
       </div>
-      <span className="text-[10px] text-slate-100 text-center truncate w-full mt-1.5 drop-shadow-[0_1.5px_1.5px_rgba(0,0,0,0.8)] font-medium">
+      
+      <span 
+        className={`
+          text-[12px] leading-tight text-center font-doodle font-extrabold tracking-tight max-w-full px-2 py-0.5 mt-1.5 rounded-lg truncate transition-all
+          ${isSelected 
+            ? 'text-[#2d2a26] bg-[#fef08a] border-2 border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
+            : themeMode === 'dark'
+              ? 'text-[#fcf9f2] bg-[#262422]/90 border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] group-hover:bg-[#fef08a] group-hover:text-[#2d2a26]'
+              : 'text-[#2d2a26] bg-[#fcf9f2]/95 border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] group-hover:bg-[#fef08a]'
+          }
+        `}
+      >
         {icon.title}
       </span>
     </div>

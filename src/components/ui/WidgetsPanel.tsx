@@ -42,17 +42,25 @@ export function WidgetsPanel() {
     return () => clearInterval(interval);
   }, [isWidgetsOpen]);
 
-  // Generate calendar days
+  // Generate calendar days dynamically
   const getCalendarDays = () => {
     const days = [];
-    // Just a placeholder grid of 35 days (e.g. June 2026 starting on Monday)
-    // 1st is Monday, 30 days total
-    const startDayOffset = 0; // Monday
-    const currentDay = 29; // Today's date from additional metadata (2026-06-29)
-    
-    for (let i = 1 - startDayOffset; i <= 35 - startDayOffset; i++) {
-      if (i > 0 && i <= 30) {
-        days.push({ dayNum: i, current: i === currentDay });
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const currentDay = now.getDate();
+
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    let startDayOffset = firstDayOfMonth.getDay() - 1;
+    if (startDayOffset < 0) startDayOffset = 6; // Adjust Sunday to be index 6 (last)
+
+    const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const totalCells = startDayOffset + totalDaysInMonth > 35 ? 42 : 35;
+
+    for (let i = 0; i < totalCells; i++) {
+      const dayIndex = i - startDayOffset + 1;
+      if (dayIndex > 0 && dayIndex <= totalDaysInMonth) {
+        days.push({ dayNum: dayIndex, current: dayIndex === currentDay });
       } else {
         days.push({ dayNum: null, current: false });
       }
@@ -204,7 +212,9 @@ export function WidgetsPanel() {
                   <CalendarIcon className="w-4 h-4 text-emerald-400" />
                   <span>CALENDAR</span>
                 </div>
-                <span className="text-[10px] font-semibold text-slate-300">June 2026</span>
+                <span className="text-[10px] font-semibold text-slate-300">
+                  {new Date().toLocaleDateString([], { month: 'long', year: 'numeric' })}
+                </span>
               </div>
 
               {/* Grid Header */}

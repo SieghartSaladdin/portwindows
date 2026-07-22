@@ -33,24 +33,35 @@ interface OSStore {
   frierenSpeech: string | null;
   fernSpeech: string | null;
   starkSpeech: string | null;
+  robotSpeech: string | null;
   thinkingLogs: string | null;
   isThinking: boolean;
   isChatInputOpen: boolean;
-  activeChatPartner: 'fern' | 'stark' | null;
+  activeChatPartner: 'fern' | 'stark' | 'robot' | null;
   recentlyOpened: string[];
   startMenuSearchFocused: boolean;
   taskViewOpen: boolean;
+  selectedProjectId: string | null;
+  themeMode: 'light' | 'dark';
+  setThemeMode: (mode: 'light' | 'dark') => void;
+  toggleThemeMode: () => void;
   
   // Dynamic Data States
   profile: { name: string; title: string; location: string; email: string; bio: string; githubUrl?: string; linkedinUrl?: string };
   projects: any[];
   skills: any[];
   experiences: any[];
+  setSelectedProjectId: (id: string | null) => void;
   
-  // System Toggles
   isLocked: boolean;
   isWidgetsOpen: boolean;
   isQuickSettingsOpen: boolean;
+  confirmDialog: {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: (() => void) | null;
+  } | null;
   
   // Actions
   openWindow: (id: string, title?: string) => void;
@@ -65,13 +76,16 @@ interface OSStore {
   setFrierenSpeech: (speech: string | null) => void;
   setFernSpeech: (speech: string | null) => void;
   setStarkSpeech: (speech: string | null) => void;
+  setRobotSpeech: (speech: string | null) => void;
   setThinkingLogs: (logs: string | null) => void;
   setIsThinking: (thinking: boolean) => void;
   setIsChatInputOpen: (open: boolean) => void;
-  setActiveChatPartner: (partner: 'fern' | 'stark' | null) => void;
+  setActiveChatPartner: (partner: 'fern' | 'stark' | 'robot' | null) => void;
   setStartMenuSearchFocused: (focused: boolean) => void;
   toggleTaskView: () => void;
   closeTaskView: () => void;
+  showConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  closeConfirm: () => void;
   
   // Dynamic Data Actions
   fetchDatabaseData: () => Promise<void>;
@@ -100,10 +114,11 @@ interface OSStore {
 const initialWindows: Record<string, WindowState> = {
   bio: { id: 'bio', title: 'Bio.txt', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
   projects: { id: 'projects', title: 'Projects', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
-  terminal: { id: 'terminal', title: 'Command Prompt', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
+  terminal: { id: 'terminal', title: 'Aura Terminal', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
   settings: { id: 'settings', title: 'Settings', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
   frieren: { id: 'frieren', title: 'Frieren.exe', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
-  admin: { id: 'admin', title: 'Admin Dashboard', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
+  admin: { id: 'admin', title: 'Developer Hub', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
+  projector: { id: 'projector', title: 'Projector Screen', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
 };
 
 export const useOSStore = create<OSStore>((set, get) => ({
@@ -123,6 +138,7 @@ export const useOSStore = create<OSStore>((set, get) => ({
   frierenSpeech: null,
   fernSpeech: null,
   starkSpeech: null,
+  robotSpeech: null,
   thinkingLogs: null,
   isThinking: false,
   isChatInputOpen: false,
@@ -130,6 +146,16 @@ export const useOSStore = create<OSStore>((set, get) => ({
   recentlyOpened: ['bio', 'projects', 'terminal'],
   startMenuSearchFocused: false,
   taskViewOpen: false,
+  selectedProjectId: null,
+  themeMode: 'light',
+
+  setThemeMode: (mode) => {
+    set({ themeMode: mode });
+  },
+
+  toggleThemeMode: () => {
+    set((state) => ({ themeMode: state.themeMode === 'light' ? 'dark' : 'light' }));
+  },
 
   // Initial Dynamic Data
   profile: PROFILE,
@@ -141,6 +167,7 @@ export const useOSStore = create<OSStore>((set, get) => ({
   isLocked: true,
   isWidgetsOpen: false,
   isQuickSettingsOpen: false,
+  confirmDialog: null,
 
   openWindow: (id, title) => {
     const nextZIndex = get().zIndexCounter + 1;
@@ -307,6 +334,9 @@ export const useOSStore = create<OSStore>((set, get) => ({
   setStarkSpeech: (speech) => {
     set({ starkSpeech: speech });
   },
+  setRobotSpeech: (speech) => {
+    set({ robotSpeech: speech });
+  },
   setThinkingLogs: (logs) => {
     set({ thinkingLogs: logs });
   },
@@ -358,6 +388,7 @@ export const useOSStore = create<OSStore>((set, get) => ({
   setProjects: (projects) => set({ projects }),
   setSkills: (skills) => set({ skills }),
   setExperiences: (experiences) => set({ experiences }),
+  setSelectedProjectId: (id) => set({ selectedProjectId: id }),
 
   // Window geometry action implementations
   updateWindowPosition: (id, x, y) => {
@@ -429,5 +460,18 @@ export const useOSStore = create<OSStore>((set, get) => ({
   },
   unlockScreen: () => {
     set({ isLocked: false });
+  },
+  showConfirm: (title, message, onConfirm) => {
+    set({
+      confirmDialog: {
+        isOpen: true,
+        title,
+        message,
+        onConfirm,
+      }
+    });
+  },
+  closeConfirm: () => {
+    set({ confirmDialog: null });
   },
 }));

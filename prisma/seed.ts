@@ -37,6 +37,8 @@ async function main() {
         tags: project.tags, // JSON array
         githubUrl: project.githubUrl || null,
         liveUrl: project.liveUrl || null,
+        images: project.images || [],
+        featured: project.featured || false,
       },
     });
   }

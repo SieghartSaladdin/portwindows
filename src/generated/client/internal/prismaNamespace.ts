@@ -759,7 +759,9 @@ export const ProjectScalarFieldEnum = {
   description: 'description',
   tags: 'tags',
   githubUrl: 'githubUrl',
-  liveUrl: 'liveUrl'
+  liveUrl: 'liveUrl',
+  images: 'images',
+  featured: 'featured'
 } as const
 
 export type ProjectScalarFieldEnum = (typeof ProjectScalarFieldEnum)[keyof typeof ProjectScalarFieldEnum]
@@ -849,6 +851,13 @@ export type JsonFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'J
  * Reference to a field of type 'QueryMode'
  */
 export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'QueryMode'>
+    
+
+
+/**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 

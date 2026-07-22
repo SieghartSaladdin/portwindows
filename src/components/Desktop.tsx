@@ -22,16 +22,44 @@ import { TerminalApp } from '@/components/apps/TerminalApp';
 import { SettingsApp } from '@/components/apps/SettingsApp';
 import { FrierenApp } from '@/components/apps/FrierenApp';
 import { AdminApp } from './apps/AdminApp';
+import { ProjectorApp } from '@/components/apps/ProjectorApp';
 
 // Desktop components
 import { FrierenPet } from '@/components/ui/FrierenPet';
 import { FernPet } from '@/components/ui/FernPet';
 import { StarkPet } from '@/components/ui/StarkPet';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { RobotPet } from '@/components/ui/RobotPet';
 
-import { FileText, Folder, Terminal, Settings, Gamepad2, ShieldAlert } from 'lucide-react';
+// Decorative Hand-Drawn Doodles for Bright Wallpaper
+const BackgroundDoodles = () => (
+  <div className="absolute inset-0 pointer-events-none select-none overflow-hidden opacity-30">
+    {/* Floating Paper Plane Doodle */}
+    <div className="absolute top-12 right-24 animate-pulse">
+      <svg className="w-16 h-16 text-[#2d2a26]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M22 2L11 13" />
+        <path d="M22 2L15 22L11 13L2 9L22 2Z" fill="#fef08a" />
+      </svg>
+    </div>
+
+    {/* Sparkle Doodles */}
+    <div className="absolute top-1/4 left-1/3 text-2xl text-amber-700 font-doodle">✨</div>
+    <div className="absolute top-2/3 right-1/4 text-3xl text-amber-600 font-doodle">✦</div>
+    <div className="absolute bottom-28 left-1/4 text-xl text-sky-700 font-doodle">★</div>
+    <div className="absolute top-20 left-1/2 text-2xl text-rose-600 font-doodle">✏️</div>
+
+    {/* Hand-Written OS Motto */}
+    <div className="absolute bottom-20 right-8 font-doodle text-sm text-[#2d2a26]/70 tracking-widest font-extrabold rotate-[-2deg]">
+      ~ AuraOS • Handcrafted Doodle Edition ~
+    </div>
+
+    {/* Coffee Stain Ring Accent */}
+    <div className="absolute bottom-1/3 left-12 w-32 h-32 rounded-full border-4 border-amber-900/15 rotate-12" />
+  </div>
+);
 
 export function Desktop() {
-  const { wallpaper, closeStartMenu, setIsChatInputOpen, fetchDatabaseData } = useOSStore();
+  const { wallpaper, themeMode, closeStartMenu, setIsChatInputOpen, fetchDatabaseData } = useOSStore();
 
   React.useEffect(() => {
     fetchDatabaseData();
@@ -39,23 +67,36 @@ export function Desktop() {
 
   const { isOpen, position, handleContextMenu, closeMenu } = useContextMenu();
 
-  // Map wallpaper ids to Tailwind background gradient styles
+  // Map wallpaper ids to Doodle Paper Wallpaper themes based on themeMode
   const getWallpaperClass = () => {
-    switch (wallpaper) {
-      case 'sunset':
-        return 'bg-gradient-to-tr from-zinc-950 via-neutral-900 to-rose-950';
-      case 'emerald':
-        return 'bg-gradient-to-tr from-stone-950 via-zinc-900 to-emerald-950';
-      case 'cyberpunk':
-        return 'bg-gradient-to-tr from-slate-950 via-slate-900 to-fuchsia-950';
-      case 'default':
-      default:
-        return 'bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950';
+    if (themeMode === 'dark') {
+      switch (wallpaper) {
+        case 'sunset':
+          return 'bg-[#2a1215] bg-doodle-paper-dark text-slate-100';
+        case 'emerald':
+          return 'bg-[#092017] bg-doodle-paper-dark text-slate-100';
+        case 'cyberpunk':
+          return 'bg-[#22102b] bg-doodle-paper-dark text-slate-100';
+        case 'default':
+        default:
+          return 'bg-[#181716] bg-doodle-paper-dark text-slate-100';
+      }
+    } else {
+      switch (wallpaper) {
+        case 'sunset':
+          return 'bg-[#fff1f2] bg-doodle-paper-light text-[#2d2a26]';
+        case 'emerald':
+          return 'bg-[#ecfdf5] bg-doodle-paper-light text-[#2d2a26]';
+        case 'cyberpunk':
+          return 'bg-[#f5f3ff] bg-doodle-paper-light text-[#2d2a26]';
+        case 'default':
+        default:
+          return 'bg-[#fefce8] bg-doodle-paper-light text-[#2d2a26]';
+      }
     }
   };
 
   const handleDesktopClick = (e: React.MouseEvent) => {
-    // Left clicking desktop closes menus
     closeStartMenu();
     closeMenu();
     setIsChatInputOpen(false);
@@ -66,12 +107,15 @@ export function Desktop() {
       onContextMenu={(e) => handleContextMenu(e.nativeEvent)}
       onClick={handleDesktopClick}
       className={`
-        relative w-screen h-screen overflow-hidden select-none transition-all duration-500 ease-in-out
+        relative w-screen h-screen overflow-hidden select-none transition-all duration-500 ease-in-out font-doodle
         ${getWallpaperClass()}
       `}
     >
+      {/* Decorative Background Doodles */}
+      <BackgroundDoodles />
+
       {/* Desktop Application Icons Grid */}
-      <div className="absolute inset-0 p-4 pt-6 flex flex-col flex-wrap content-start items-start gap-4 h-[calc(100vh-48px)]">
+      <div className="absolute inset-0 p-6 pt-8 flex flex-col flex-wrap content-start items-start gap-4 h-[calc(100vh-56px)] z-10">
         {DESKTOP_ICONS.map((icon) => (
           <AppIcon key={icon.id} icon={icon} />
         ))}
@@ -83,12 +127,15 @@ export function Desktop() {
       <FernPet />
       {/* Stark NPC Desktop Pet */}
       <StarkPet />
+      {/* Helper Robot Desktop Pet */}
+      <RobotPet />
 
       {/* Draggable Active Windows Containers */}
       <WindowContainer
         id="bio"
-        title="Bio.txt - Notepad"
-        icon={<FileText className="w-4 h-4 text-emerald-400" />}
+        title="Bio.txt"
+        defaultWidth={820}
+        defaultHeight={580}
       >
         <BioApp />
       </WindowContainer>
@@ -96,19 +143,17 @@ export function Desktop() {
       <WindowContainer
         id="projects"
         title="Projects"
-        defaultWidth={850}
-        defaultHeight={600}
-        icon={<Folder className="w-4 h-4 text-amber-400" />}
+        defaultWidth={1150}
+        defaultHeight={700}
       >
         <ProjectsApp />
       </WindowContainer>
 
       <WindowContainer
         id="terminal"
-        title="Command Prompt"
-        defaultWidth={700}
-        defaultHeight={450}
-        icon={<Terminal className="w-4 h-4 text-indigo-400" />}
+        title="Aura Terminal"
+        defaultWidth={880}
+        defaultHeight={540}
       >
         <TerminalApp />
       </WindowContainer>
@@ -116,9 +161,8 @@ export function Desktop() {
       <WindowContainer
         id="settings"
         title="Settings"
-        defaultWidth={800}
-        defaultHeight={550}
-        icon={<Settings className="w-4 h-4 text-blue-400" />}
+        defaultWidth={880}
+        defaultHeight={600}
       >
         <SettingsApp />
       </WindowContainer>
@@ -126,46 +170,48 @@ export function Desktop() {
       <WindowContainer
         id="frieren"
         title="Frieren.exe"
-        defaultWidth={650}
-        defaultHeight={420}
-        icon={<Gamepad2 className="w-4 h-4 text-rose-400" />}
+        defaultWidth={720}
+        defaultHeight={520}
       >
         <FrierenApp />
       </WindowContainer>
 
       <WindowContainer
         id="admin"
-        title="Admin Dashboard"
-        defaultWidth={900}
-        defaultHeight={600}
-        icon={<ShieldAlert className="w-4 h-4 text-red-400" />}
+        title="Developer Hub"
+        defaultWidth={1050}
+        defaultHeight={660}
       >
         <AdminApp />
       </WindowContainer>
 
-      {/* Frieren speech typing input bar */}
-      <DesktopChatInput />
+      <WindowContainer
+        id="projector"
+        title="Projector Cinema"
+        defaultWidth={1020}
+        defaultHeight={620}
+      >
+        <ProjectorApp />
+      </WindowContainer>
 
-      {/* Start Menu Overlay */}
-      <StartMenu />
-
-      {/* Right-click Context Menu */}
-      <ContextMenu isOpen={isOpen} position={position} onClose={closeMenu} />
-
-      {/* Task View Overlay */}
-      <TaskView />
-
-      {/* System Taskbar */}
+      {/* Taskbar & Navigation Overlays */}
       <Taskbar />
-
-      {/* Quick Settings Panel Popover */}
+      <StartMenu />
+      <DesktopChatInput />
+      <TaskView />
       <QuickSettings />
-
-      {/* Left-sliding Widgets Panel */}
       <WidgetsPanel />
-
-      {/* Lock Screen Full-screen Sign-in Overlay */}
       <LockScreen />
+      <ConfirmDialog />
+
+      {/* Custom Context Menu */}
+      {isOpen && (
+        <ContextMenu
+          isOpen={isOpen}
+          position={position}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }

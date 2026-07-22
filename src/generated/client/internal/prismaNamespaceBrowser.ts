@@ -90,7 +90,9 @@ export const ProjectScalarFieldEnum = {
   description: 'description',
   tags: 'tags',
   githubUrl: 'githubUrl',
-  liveUrl: 'liveUrl'
+  liveUrl: 'liveUrl',
+  images: 'images',
+  featured: 'featured'
 } as const
 
 export type ProjectScalarFieldEnum = (typeof ProjectScalarFieldEnum)[keyof typeof ProjectScalarFieldEnum]

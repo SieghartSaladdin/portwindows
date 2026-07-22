@@ -16,12 +16,12 @@ Exposes the following tools to the AI assistant:
 
 ## 🚀 Setup & Integration
 
-The MCP server is built using the official **Streamable HTTP transport** standard. This combines both SSE and POST messages under a single, unified HTTP endpoint!
+The MCP server is built using the official **Streamable HTTP transport** standard (which combines both SSE and POST messages under a single, unified endpoint) and also supports standard local **stdio** execution.
 
-You have two ways to run and connect to it:
+You have two ways to run it:
 
-### Option A: Built-in to the Website (Port 3000)
-When you run your Next.js dev server (`npm run dev`) or run it in Docker, the MCP endpoint is automatically active:
+### Option A: Built-in to Next.js (Port 3000)
+When you run your Next.js dev server (`npm run dev`) or host it in Docker, the MCP endpoint is automatically active on the same port:
 - **Unified Endpoint URL**: `http://localhost:3000/api/mcp`
 - *(No separate commands or ports to manage!)*
 
@@ -36,7 +36,16 @@ npm run mcp:sse
 
 ## 🖥️ AI Client Configuration
 
-### 1. In Cursor (IDE)
+### 1. In Hermes Agent
+Add the following to your `~/.hermes/config.yaml` file (use your actual live domain if deployed to the cloud):
+```yaml
+mcp_servers:
+  portwindows-mcp:
+    url: "https://your-portfolio-domain.com/api/mcp"
+    transport: sse
+```
+
+### 2. In Cursor (IDE)
 1. Go to **Settings** (Gear icon in top-right) -> **Features** -> **MCP**.
 2. Click **+ Add New MCP Server**.
 3. Fill in:
@@ -45,9 +54,7 @@ npm run mcp:sse
    - **URL**: `http://localhost:3000/api/mcp` (or `http://localhost:3001/mcp` if running Option B).
 4. Click **Save**.
 
----
-
-### 2. In Windsurf (IDE)
+### 3. In Windsurf (IDE)
 1. Go to **Settings** -> **Advanced** -> **MCP**.
 2. Add a new MCP server:
    - **Name**: `portwindows-mcp`
@@ -55,34 +62,8 @@ npm run mcp:sse
    - **Endpoint**: `http://localhost:3000/api/mcp` (or `http://localhost:3001/mcp` if running Option B).
 3. Click **Add**.
 
----
-
-### 3. In VS Code Cline (Extension)
-In Cline's settings, click **Configure MCP Servers** and add:
-```json
-{
-  "mcpServers": {
-    "portwindows-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "tsx",
-        "c:/laragon/www/webapp/portwindows/src/mcp/index.ts"
-      ],
-      "cwd": "c:/laragon/www/webapp/portwindows"
-    }
-  }
-}
-```
-
----
-
 ### 4. In Claude Desktop
-Edit your configuration file:
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-Add the following entry:
+Edit your configuration file (`%APPDATA%\Claude\claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -103,10 +84,10 @@ Add the following entry:
 
 ## 🐋 Running in Docker
 
-If you run the project inside Docker, the MCP server runs automatically on the same container port!
+When you run the project inside Docker, the MCP server runs automatically on the same container port!
 
 To ensure changes made by the AI persist when using Docker, mount the `prisma` directory as a volume. For example:
 ```bash
-docker run -p 3000:3000 -v $(pwd)/prisma:/app/prisma sieghartsaladdin/portwindows:latest
+docker run -p 3000:3000 -v $(pwd)/prisma:/app/prisma rfieq/portwindows:latest
 ```
 This maps the SQLite database to your host machine so that both the website inside the container and your AI tools on the host share the same database updates.

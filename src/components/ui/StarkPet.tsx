@@ -157,9 +157,27 @@ export function StarkPet() {
     if (isSpawned && spawnStark && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.3 - scale / 2,
-        y: window.innerHeight * 0.6 - scale / 2 - 48,
+        y: window.innerHeight - scale - 48,
       });
     }
+  }, [isSpawned, spawnStark, scale]);
+
+  // Maintain vertical position relative to taskbar on window resize
+  useEffect(() => {
+    if (!isSpawned || !spawnStark || typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setPosition((pos) => {
+        const maxX = window.innerWidth - scale;
+        return {
+          x: Math.max(0, Math.min(maxX, pos.x)),
+          y: window.innerHeight - scale - 48,
+        };
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [isSpawned, spawnStark, scale]);
 
   // 2. Sprite walking frame loops (runs at ~7.5Hz when walking)
@@ -194,9 +212,10 @@ export function StarkPet() {
       if (rand < 0.3) {
         // 30% chance to stop and stand idle
         setIsWalking(false);
+        setDirection('down');
       } else {
-        // 70% chance to walk in a random direction
-        const directions: ('up' | 'down' | 'left' | 'right')[] = ['up', 'down', 'left', 'right'];
+        // 70% chance to walk in a random direction (left/right only on taskbar)
+        const directions: ('left' | 'right')[] = ['left', 'right'];
         const randomDir = directions[Math.floor(Math.random() * directions.length)];
         setDirection(randomDir);
         setIsWalking(true);
@@ -254,19 +273,15 @@ export function StarkPet() {
       if (isWalkingRef.current) {
         const dir = directionRef.current;
         let dx = 0;
-        let dy = 0;
 
-        if (dir === 'up') dy = -1;
-        if (dir === 'down') dy = 1;
         if (dir === 'left') dx = -1;
         if (dir === 'right') dx = 1;
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const maxY = window.innerHeight - scale - 48; // Exclude taskbar
+          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
 
           let nextX = pos.x + dx * starkSpeed;
-          let nextY = pos.y + dy * starkSpeed;
           let reboundOccurred = false;
           let nextDir = dir;
 
@@ -281,22 +296,11 @@ export function StarkPet() {
             reboundOccurred = true;
           }
 
-          // Rebound on vertical edges
-          if (nextY < 0) {
-            nextY = 0;
-            nextDir = 'down';
-            reboundOccurred = true;
-          } else if (nextY > maxY) {
-            nextY = maxY;
-            nextDir = 'up';
-            reboundOccurred = true;
-          }
-
           if (reboundOccurred) {
             setDirection(nextDir);
           }
 
-          return { x: nextX, y: nextY };
+          return { x: nextX, y: targetY };
         });
       }
 
@@ -506,25 +510,23 @@ export function StarkPet() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 px-4 py-2.5 bg-white text-zinc-900 border border-zinc-200/90 rounded-2xl shadow-xl text-xs w-max max-w-[380px] min-w-[80px] break-words font-semibold leading-relaxed text-center"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-[#fcf9f2] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] rounded-2xl text-xs w-max max-w-[380px] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
             style={{ 
               imageRendering: 'auto',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
             }}
           >
             {isThinking && activeChatPartner === 'stark' ? (
               <div className="flex items-center justify-center gap-1.5 py-1 px-2">
-                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce" />
               </div>
             ) : (
               displayedSpeech
             )}
-            {/* White speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white" />
-            {/* Outline speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-zinc-200 -z-10 mt-[0.5px]" />
+            {/* Doodle speech bubble pointer tail */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-[#2d2a26]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-[#fcf9f2] -mt-[1px]" />
           </motion.div>
         )}
       </AnimatePresence>

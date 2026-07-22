@@ -10,7 +10,8 @@ export function FrierenPet() {
     frierenConfig, 
     updateFrierenConfig, 
     frierenSpeech, 
-    setFrierenSpeech 
+    setFrierenSpeech,
+    activeChatPartner
   } = useOSStore();
   const { isSpawned, scale, speed, speechVolume } = frierenConfig;
 
@@ -166,9 +167,27 @@ export function FrierenPet() {
     if (isSpawned && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth / 2 - scale / 2,
-        y: window.innerHeight / 2 - scale / 2 - 48,
+        y: window.innerHeight - scale - 48,
       });
     }
+  }, [isSpawned, scale]);
+
+  // Maintain vertical position relative to taskbar on window resize
+  useEffect(() => {
+    if (!isSpawned || typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setPosition((pos) => {
+        const maxX = window.innerWidth - scale;
+        return {
+          x: Math.max(0, Math.min(maxX, pos.x)),
+          y: window.innerHeight - scale - 48,
+        };
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [isSpawned, scale]);
 
   // 2. Sprite walking frame loops (runs at ~8Hz when walking)
@@ -183,6 +202,17 @@ export function FrierenPet() {
     }, 130);
 
     return () => clearInterval(timer);
+  }, [isSpawned, isWalking]);
+
+  // Turn Frieren to face down when idle for a short period
+  useEffect(() => {
+    if (!isSpawned || isWalking) return;
+
+    const timer = setTimeout(() => {
+      setDirection('down');
+    }, 1500); // 1.5 seconds of inactivity
+
+    return () => clearTimeout(timer);
   }, [isSpawned, isWalking]);
 
   // 3. Movement and Keyboard loops
@@ -223,16 +253,13 @@ export function FrierenPet() {
     const tick = (timestamp: number) => {
       if (pressedKeys.current.size > 0) {
         let dx = 0;
-        let dy = 0;
         let newDir = directionRef.current;
 
-        // Calculate movements based on keys pressed
+        // Calculate movements and directions based on keys pressed
         if (pressedKeys.current.has('w') || pressedKeys.current.has('arrowup')) {
-          dy = -1;
           newDir = 'up';
         }
         if (pressedKeys.current.has('s') || pressedKeys.current.has('arrowdown')) {
-          dy = 1;
           newDir = 'down';
         }
         if (pressedKeys.current.has('a') || pressedKeys.current.has('arrowleft')) {
@@ -250,20 +277,17 @@ export function FrierenPet() {
         }
 
         // Apply movement vector
-        if (dx !== 0 || dy !== 0) {
-          // Normalize diagonal speed
-          const length = Math.sqrt(dx * dx + dy * dy);
-          const moveX = (dx / length) * speedRef.current;
-          const moveY = (dy / length) * speedRef.current;
+        if (dx !== 0) {
+          const moveX = dx * speedRef.current;
 
           setPosition((pos) => {
             const currentScale = scaleRef.current;
             const maxX = window.innerWidth - currentScale;
-            const maxY = window.innerHeight - currentScale - 48; // Excluding taskbar (48px)
+            const targetY = window.innerHeight - currentScale - 52; // Standing directly on top of taskbar floor line
 
             return {
               x: Math.max(0, Math.min(maxX, pos.x + moveX)),
-              y: Math.max(0, Math.min(maxY, pos.y + moveY)),
+              y: targetY,
             };
           });
         }
@@ -282,6 +306,34 @@ export function FrierenPet() {
       }
     };
   }, [isSpawned]);
+
+  // Face the active chat partner when in conversation
+  useEffect(() => {
+    if (!activeChatPartner || !isSpawned) return;
+
+    const facePartner = () => {
+      const frierenEl = document.getElementById('frieren-pet');
+      const partnerId = activeChatPartner === 'fern' ? 'fern-pet' : activeChatPartner === 'stark' ? 'stark-pet' : 'robot-pet';
+      const partnerEl = document.getElementById(partnerId);
+      
+      if (frierenEl && partnerEl) {
+        const r1 = frierenEl.getBoundingClientRect();
+        const r2 = partnerEl.getBoundingClientRect();
+        const c1x = r1.left + r1.width / 2;
+        const c2x = r2.left + r2.width / 2;
+        
+        if (c1x < c2x) {
+          setDirection('right');
+        } else {
+          setDirection('left');
+        }
+      }
+    };
+
+    facePartner();
+    const interval = setInterval(facePartner, 200);
+    return () => clearInterval(interval);
+  }, [activeChatPartner, isSpawned]);
 
   // 5. Silent Typewriter Speech Bubble & Mouth Animation
   useEffect(() => {
@@ -392,17 +444,15 @@ export function FrierenPet() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 px-4 py-2.5 bg-white text-zinc-900 border border-zinc-200/90 rounded-2xl shadow-xl text-xs w-max max-w-[380px] min-w-[80px] break-words font-semibold leading-relaxed text-center"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-[#fcf9f2] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] rounded-2xl text-xs w-max max-w-[380px] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
             style={{ 
-              imageRendering: 'auto', // Reset pixelation for text legibility
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
+              imageRendering: 'auto',
             }}
           >
             {displayedSpeech}
-            {/* White speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white" />
-            {/* Outline speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-zinc-200 -z-10 mt-[0.5px]" />
+            {/* Doodle speech bubble pointer tail */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-[#2d2a26]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-[#fcf9f2] -mt-[1px]" />
           </motion.div>
         )}
       </AnimatePresence>

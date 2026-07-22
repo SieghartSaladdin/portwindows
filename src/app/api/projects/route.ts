@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
     
     const body = await request.json();
-    const { title, description, tags, githubUrl, liveUrl } = body;
+    const { title, description, tags, githubUrl, liveUrl, images, featured } = body;
     
     if (!title || !description) {
       return NextResponse.json({ error: 'Title and description are required' }, { status: 400 });
@@ -31,6 +31,8 @@ export async function POST(request: Request) {
         tags: tags || [],
         githubUrl: githubUrl || null,
         liveUrl: liveUrl || null,
+        images: images || [],
+        featured: featured !== undefined ? featured : false,
       },
     });
     

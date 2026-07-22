@@ -4,7 +4,7 @@ let audioCtx: AudioContext | null = null;
  * Plays a retro 2D RPG-style text blip sound using the Web Audio API.
  * Synthesized dynamically with zero dependencies or external audio assets.
  */
-export function playTextBlip(character: 'frieren' | 'fern' | 'stark' = 'frieren', volumeSetting: number = 0.5) {
+export function playTextBlip(character: 'frieren' | 'fern' | 'stark' | 'robot' = 'frieren', volumeSetting: number = 0.5) {
   try {
     if (typeof window === 'undefined') return;
     if (volumeSetting <= 0) return; // Completely muted
@@ -37,6 +37,9 @@ export function playTextBlip(character: 'frieren' | 'fern' | 'stark' = 'frieren'
     } else if (character === 'stark') {
       freq = 145; // Low and slightly blunt
       type = 'triangle'; // triangle is cleaner and less harsh than square
+    } else if (character === 'robot') {
+      freq = 680; // Cute high-pitched computer beep
+      type = 'square';
     }
 
     osc.type = type;

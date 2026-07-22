@@ -26,7 +26,9 @@ export function QuickSettings() {
     closeQuickSettings, 
     lockScreen, 
     wallpaper, 
-    setWallpaper 
+    setWallpaper,
+    themeMode,
+    toggleThemeMode
   } = useOSStore();
 
   // Local state for Quick Settings toggles
@@ -65,40 +67,58 @@ export function QuickSettings() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 50, scale: 0.95 }}
         transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-        className="fixed bottom-14 right-3 w-[360px] rounded-xl border border-white/10 win-mica-dark p-4 shadow-2xl z-50 text-slate-200 select-none"
+        className={`fixed bottom-14 right-3 w-[360px] rounded-2xl border-[2.5px] border-[#2d2a26] p-4 shadow-[6px_6px_0px_0px_#2d2a26] z-50 font-doodle select-none ${
+          themeMode === 'dark' ? 'bg-[#262422] text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
+        }`}
       >
         {/* Toggle Grid */}
         <div className="grid grid-cols-3 gap-2 mb-4">
+          {/* Theme Mode Toggle Tile */}
+          <button
+            onClick={toggleThemeMode}
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${
+              themeMode === 'light' 
+                ? 'bg-[#fef08a] text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
+                : 'bg-zinc-800 text-amber-300 shadow-[3px_3px_0px_0px_#2d2a26]'
+            }`}
+          >
+            {themeMode === 'light' ? <Sun className="w-5 h-5 mb-1.5 text-[#2d2a26]" /> : <Moon className="w-5 h-5 mb-1.5 text-amber-300" />}
+            <span className="text-[10px] font-extrabold truncate max-w-full">
+              {themeMode === 'light' ? 'Mode Terang' : 'Mode Gelap'}
+            </span>
+            <span className="text-[8.5px] opacity-80 font-bold uppercase truncate max-w-full">Tema OS</span>
+          </button>
+
           {/* Wifi */}
           <button
             onClick={() => setWifi(!wifi)}
-            className={`flex flex-col items-center justify-between p-3 rounded-lg border transition-all ${
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${
               wifi 
-                ? 'bg-sky-500 border-sky-400/30 text-white shadow-lg shadow-sky-500/20' 
-                : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                ? 'bg-sky-400 text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
+                : 'bg-zinc-800/40 text-slate-400'
             }`}
           >
-            {wifi ? <Wifi className="w-5 h-5 mb-2" /> : <WifiOff className="w-5 h-5 mb-2" />}
-            <span className="text-[10px] font-medium truncate max-w-full">
-              {wifi ? 'Connected' : 'Disconnected'}
+            {wifi ? <Wifi className="w-5 h-5 mb-1.5" /> : <WifiOff className="w-5 h-5 mb-1.5" />}
+            <span className="text-[10px] font-extrabold truncate max-w-full">
+              {wifi ? 'Connected' : 'Off'}
             </span>
-            <span className="text-[8px] opacity-70 truncate max-w-full">Wi-Fi</span>
+            <span className="text-[8.5px] opacity-80 font-bold uppercase truncate max-w-full">Wi-Fi</span>
           </button>
 
           {/* Bluetooth */}
           <button
             onClick={() => setBluetooth(!bluetooth)}
-            className={`flex flex-col items-center justify-between p-3 rounded-lg border transition-all ${
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${
               bluetooth 
-                ? 'bg-sky-500 border-sky-400/30 text-white shadow-lg shadow-sky-500/20' 
-                : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                ? 'bg-sky-400 text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
+                : 'bg-zinc-800/40 text-slate-400'
             }`}
           >
-            <Bluetooth className="w-5 h-5 mb-2" />
-            <span className="text-[10px] font-medium truncate max-w-full">
+            <Bluetooth className="w-5 h-5 mb-1.5" />
+            <span className="text-[10px] font-extrabold truncate max-w-full">
               {bluetooth ? 'On' : 'Off'}
             </span>
-            <span className="text-[8px] opacity-70 truncate max-w-full">Bluetooth</span>
+            <span className="text-[8.5px] opacity-80 font-bold uppercase truncate max-w-full">Bluetooth</span>
           </button>
 
           {/* Airplane Mode */}

@@ -13,7 +13,7 @@ export async function PUT(
     
     const { id } = await ctx.params;
     const body = await request.json();
-    const { title, description, tags, githubUrl, liveUrl } = body;
+    const { title, description, tags, githubUrl, liveUrl, images, featured } = body;
     
     const project = await prisma.project.update({
       where: { id },
@@ -23,6 +23,8 @@ export async function PUT(
         tags: tags || undefined,
         githubUrl: githubUrl !== undefined ? githubUrl : undefined,
         liveUrl: liveUrl !== undefined ? liveUrl : undefined,
+        images: images !== undefined ? images : undefined,
+        featured: featured !== undefined ? featured : undefined,
       },
     });
     

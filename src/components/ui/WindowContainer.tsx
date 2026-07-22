@@ -18,8 +18,8 @@ export function WindowContainer({
   id,
   title,
   children,
-  defaultWidth = 800,
-  defaultHeight = 550,
+  defaultWidth = 920,
+  defaultHeight = 620,
   icon,
 }: WindowContainerProps) {
   const windowRef = useRef<HTMLDivElement>(null);
@@ -33,7 +33,8 @@ export function WindowContainer({
     closeWindow,
     updateWindowPosition,
     updateWindowSize,
-    setWindowSnap
+    setWindowSnap,
+    themeMode
   } = useOSStore();
   
   const windowState = windows[id];
@@ -63,13 +64,13 @@ export function WindowContainer({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const offsetX = id === 'projects' ? 30 : id === 'terminal' ? 60 : id === 'settings' ? 90 : 0;
-      const x = window.innerWidth * 0.15 + offsetX;
-      const y = window.innerHeight * 0.1 + offsetX;
-      setPosition({ x, y });
-      setPrevNormalPos({ x, y });
+      const offsetX = id === 'projects' ? 25 : id === 'terminal' ? 45 : id === 'settings' ? 65 : 0;
+      const initialX = Math.max(20, Math.min((window.innerWidth - defaultWidth) / 2 + offsetX, window.innerWidth - defaultWidth - 20));
+      const initialY = Math.max(20, Math.min((window.innerHeight - defaultHeight) / 2 - 20 + offsetX, window.innerHeight - defaultHeight - 60));
+      setPosition({ x: initialX, y: initialY });
+      setPrevNormalPos({ x: initialX, y: initialY });
     }
-  }, [id]);
+  }, [id, defaultWidth, defaultHeight]);
 
 
   if (!windowState || !windowState.isOpen) return null;
@@ -365,10 +366,10 @@ export function WindowContainer({
           top: isMaximized ? 0 : position.y,
         }}
         className={`
-          flex flex-col overflow-hidden select-none rounded-xl border
+          flex flex-col overflow-hidden select-none rounded-2xl border-[2.5px] border-[#2d2a26] bg-zinc-950 shadow-[6px_6px_0px_0px_#2d2a26]
           ${isFocused 
-            ? 'win-mica-dark border-white/15 shadow-2xl ring-1 ring-white/5' 
-            : 'bg-zinc-900/80 backdrop-blur-md border-white/5 shadow-lg opacity-90'
+            ? 'ring-1 ring-[#2d2a26]/40 shadow-[8px_8px_0px_0px_#2d2a26]' 
+            : 'opacity-95'
           }
           ${isResizingOrDragging ? '' : 'transition-all duration-300 ease-out'}
         `}
@@ -423,23 +424,33 @@ export function WindowContainer({
         <div
           onPointerDown={handleHeaderPointerDown}
           onDoubleClick={handleHeaderDoubleClick}
-          className="flex items-center justify-between h-10 px-3 bg-black/20 border-b border-white/5 cursor-default select-none touch-none"
+          className={`flex items-center justify-between h-11 px-4 border-b-[2.5px] border-[#2d2a26] cursor-default select-none touch-none ${
+            themeMode === 'dark' ? 'bg-[#262422]' : 'bg-[#fcf9f2]'
+          }`}
         >
           {/* Title Info */}
-          <div className="flex items-center gap-2 text-xs font-normal text-slate-300">
-            {icon && <span className="w-4 h-4 flex items-center justify-center">{icon}</span>}
-            <span className="truncate max-w-[200px] sm:max-w-[400px]">{title}</span>
+          <div className="flex items-center gap-2.5 text-sm font-doodle text-[#fcf9f2]">
+            {icon ? (
+              <span className="w-6 h-6 flex items-center justify-center p-0.5 border-2 border-[#2d2a26] rounded-lg bg-[#fef08a] text-[#2d2a26] shadow-[1.5px_1.5px_0px_0px_#2d2a26]">
+                {icon}
+              </span>
+            ) : (
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-[#2d2a26] bg-[#fef08a] shadow-[1px_1px_0px_0px_#2d2a26]" />
+            )}
+            <span className={`truncate max-w-[200px] sm:max-w-[400px] font-bold tracking-wide font-doodle ${
+              themeMode === 'dark' ? 'text-[#fcf9f2]' : 'text-[#2d2a26]'
+            }`}>{title}</span>
           </div>
 
           {/* Window Controls */}
-          <div className="flex items-center h-full">
+          <div className="flex items-center gap-2 h-full">
             {/* Minimize */}
             <button
               onClick={() => minimizeWindow(id)}
-              className="win-control-btn flex items-center justify-center w-11 h-10 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+              className="win-control-btn flex items-center justify-center w-7 h-7 bg-amber-300 border-2 border-[#2d2a26] text-[#2d2a26] rounded-xl font-bold hover:scale-105 active:scale-95 transition-all"
               title="Minimize"
             >
-              <Minus className="w-3.5 h-3.5" />
+              <Minus className="w-4 h-4 stroke-[3]" />
             </button>
 
             {/* Maximize / Restore */}
@@ -452,29 +463,31 @@ export function WindowContainer({
                 maximizeWindow(id);
                 setIsSnapped(null);
               }}
-              className="win-control-btn flex items-center justify-center w-11 h-10 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+              className="win-control-btn flex items-center justify-center w-7 h-7 bg-sky-300 border-2 border-[#2d2a26] text-[#2d2a26] rounded-xl font-bold hover:scale-105 active:scale-95 transition-all"
               title={isMaximized ? 'Restore Down' : 'Maximize'}
             >
               {isMaximized ? (
-                <Copy className="w-3 h-3 rotate-180" />
+                <Copy className="w-3.5 h-3.5 stroke-[3] rotate-180" />
               ) : (
-                <Square className="w-3 h-3" />
+                <Square className="w-3.5 h-3.5 stroke-[3]" />
               )}
             </button>
 
             {/* Close */}
             <button
               onClick={() => closeWindow(id)}
-              className="win-control-btn flex items-center justify-center w-11 h-10 text-slate-400 hover:bg-red-600 hover:text-white transition-colors"
+              className="win-control-btn flex items-center justify-center w-7 h-7 bg-rose-400 border-2 border-[#2d2a26] text-white rounded-full font-bold hover:scale-105 active:scale-95 transition-all"
               title="Close"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 stroke-[3]" />
             </button>
           </div>
         </div>
 
         {/* Window Body */}
-        <div className="flex-1 overflow-auto bg-zinc-950/40 text-slate-200">
+        <div className={`flex-1 overflow-auto ${
+          themeMode === 'dark' ? 'bg-zinc-950 bg-doodle-grid text-slate-200' : 'bg-[#fdfbf7] bg-doodle-grid text-[#2d2a26]'
+        }`}>
           {children}
         </div>
       </motion.div>

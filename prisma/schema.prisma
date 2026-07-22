@@ -25,6 +25,8 @@ model Project {
   tags        Json    // Store as JSON array of strings
   githubUrl   String?
   liveUrl     String?
+  images      Json    @default("[]") // Array of image URLs/paths
+  featured    Boolean @default(false) // Recommended project banner flag
 }
 
 model Skill {

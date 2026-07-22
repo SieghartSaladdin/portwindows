@@ -33,9 +33,9 @@ export function TaskView() {
   const openWindows = Object.values(windows).filter((w) => w.isOpen);
 
   const appIcons: Record<string, { title: string; icon: React.ReactNode }> = {
-    bio: { title: 'Bio.txt - Notepad', icon: <FileText className="w-4 h-4 text-emerald-400" /> },
+    bio: { title: 'Bio.txt - TextEdit', icon: <FileText className="w-4 h-4 text-emerald-400" /> },
     projects: { title: 'Projects', icon: <Folder className="w-4 h-4 text-amber-400" /> },
-    terminal: { title: 'Command Prompt', icon: <Terminal className="w-4 h-4 text-indigo-400" /> },
+    terminal: { title: 'Aura Terminal', icon: <Terminal className="w-4 h-4 text-indigo-400" /> },
     settings: { title: 'Settings', icon: <Settings className="w-4 h-4 text-blue-400" /> },
     frieren: { title: 'Frieren.exe', icon: <Gamepad2 className="w-4 h-4 text-rose-400" /> },
   };
@@ -45,7 +45,7 @@ export function TaskView() {
       case 'bio':
         return (
           <div className="w-full h-full bg-zinc-900 p-3.5 flex flex-col gap-2 font-mono text-[8px] text-slate-300 leading-normal select-none overflow-hidden">
-            <div className="border-b border-zinc-800 pb-1 text-slate-500">Bio.txt - Notepad</div>
+            <div className="border-b border-zinc-800 pb-1 text-slate-500">Bio.txt - TextEdit</div>
             <div className="flex flex-col gap-1 mt-1">
               <div className="w-2/3 h-1.5 bg-emerald-500/20 rounded"></div>
               <div className="w-5/6 h-1.5 bg-zinc-700/30 rounded"></div>
@@ -77,8 +77,8 @@ export function TaskView() {
       case 'terminal':
         return (
           <div className="w-full h-full bg-black p-3.5 flex flex-col gap-1 font-mono text-[7px] text-slate-300 select-none overflow-hidden">
-            <div className="text-zinc-500">Microsoft Windows [Version 10.0.22631]</div>
-            <div className="text-zinc-500">C:\Users\Fafnir&gt; npm run dev</div>
+            <div className="text-zinc-500">AuraOS Command Terminal [Build 1.0.4]</div>
+            <div className="text-zinc-500">visitor@aura-os:~$ npm run dev</div>
             <div className="text-emerald-400 mt-1">&gt; Compiled successfully</div>
             <div className="text-slate-400">Ready on http://localhost:3000</div>
           </div>
@@ -197,7 +197,7 @@ export function TaskView() {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            alert("Multiple virtual desktops are simulated in Desktop 1.");
+            confirm("Multiple virtual desktops are simulated in Desktop 1.");
           }}
           className="flex flex-col items-center gap-1.5 p-2 px-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-[10px] font-bold tracking-wide uppercase transition cursor-default"
         >
