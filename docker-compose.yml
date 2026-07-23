@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+      - "3002:3002"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -16,6 +17,7 @@ services:
       - LLM_API_BASE_URL=${LLM_API_BASE_URL:-https://ai.rfieq.me/v1}
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_MODEL=${LLM_MODEL:-Combo_Secondary}
+      - MCP_API_KEY=${MCP_API_KEY}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-Doraemon}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - DATABASE_URL=${DATABASE_URL:-file:./dev.db}

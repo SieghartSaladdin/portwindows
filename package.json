@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "mcp": "npx tsx src/mcp/index.ts",
-    "mcp:stdio": "npx tsx src/mcp/index.ts --stdio"
+    "mcp": "npx tsx --env-file=.env.local src/mcp/index.ts",
+    "mcp:stdio": "npx tsx --env-file=.env.local src/mcp/index.ts --stdio"
   },
   "dependencies": {
     "@langchain/core": "^1.2.3",

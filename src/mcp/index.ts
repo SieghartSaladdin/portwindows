@@ -18,6 +18,39 @@ registerTools(server);
 // Active SSE Transports Map by Session ID
 const sseTransports = new Map<string, SSEServerTransport>();
 
+// Helper function to validate MCP_API_KEY from env
+function validateMcpApiKey(req: http.IncomingMessage, parsedUrl: any): boolean {
+  const configuredKey = process.env.MCP_API_KEY;
+  // If no MCP_API_KEY is configured in env, allow access
+  if (!configuredKey || configuredKey.trim() === "") {
+    return true;
+  }
+
+  // 1. Check Authorization header ("Bearer <token>" or "<token>")
+  const authHeader = req.headers["authorization"] || req.headers["Authorization"];
+  if (typeof authHeader === "string") {
+    const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    const token = bearerMatch ? bearerMatch[1].trim() : authHeader.trim();
+    if (token === configuredKey) {
+      return true;
+    }
+  }
+
+  // 2. Check x-api-key header
+  const xApiKey = req.headers["x-api-key"] || req.headers["X-Api-Key"];
+  if (typeof xApiKey === "string" && xApiKey.trim() === configuredKey) {
+    return true;
+  }
+
+  // 3. Check URL query parameters (?apiKey=... or ?api_key=...)
+  const queryKey = parsedUrl.query.apiKey || parsedUrl.query.api_key;
+  if (typeof queryKey === "string" && queryKey.trim() === configuredKey) {
+    return true;
+  }
+
+  return false;
+}
+
 async function main() {
   const isStdioMode = process.argv.includes("--stdio");
 
@@ -31,12 +64,13 @@ async function main() {
 
   // Network HTTP Server (SSE & Streamable HTTP mode)
   const PORT = parseInt(process.env.MCP_PORT || "3002", 10);
+  const isAuthRequired = !!(process.env.MCP_API_KEY && process.env.MCP_API_KEY.trim() !== "");
 
   const httpServer = http.createServer(async (req, res) => {
     // CORS headers for remote clients
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-session-id");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, x-session-id");
 
     if (req.method === "OPTIONS") {
       res.writeHead(200);
@@ -47,9 +81,22 @@ async function main() {
     const parsedUrl = parse(req.url || "", true);
     const pathname = parsedUrl.pathname || "/";
 
+    // Enforce API Key Authentication if configured in env
+    if (pathname !== "/" && !validateMcpApiKey(req, parsedUrl)) {
+      console.error(`[MCP Auth Failed] Unauthorized request from ${req.socket.remoteAddress} on ${pathname}`);
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "Unauthorized",
+          message: "Invalid or missing MCP_API_KEY. Provide it via header 'Authorization: Bearer <key>', 'x-api-key: <key>', or query param '?apiKey=<key>'.",
+        })
+      );
+      return;
+    }
+
     // 1. Standard SSE Transport Endpoint (/sse & /messages) for mcp-remote
     if (pathname === "/sse") {
-      console.error(`[MCP SSE] New client connection from ${req.socket.remoteAddress}`);
+      console.error(`[MCP SSE] New client connection established from ${req.socket.remoteAddress}`);
       
       const sseTransport = new SSEServerTransport("/messages", res);
       const sessionId = sseTransport.sessionId;
@@ -102,13 +149,21 @@ async function main() {
             name: "portwindows-admin-mcp",
             version: "1.0.0",
             status: "ONLINE",
+            authenticationRequired: isAuthRequired,
             endpoints: {
               sse: `http://localhost:${PORT}/sse`,
               mcp: `http://localhost:${PORT}/mcp`,
             },
             mcpRemoteUsage: {
               command: "npx",
-              args: ["-y", "mcp-remote", `http://<YOUR_IP>:${PORT}/sse`, "--allow-http"],
+              args: [
+                "-y",
+                "mcp-remote",
+                isAuthRequired
+                  ? `http://<YOUR_IP>:${PORT}/sse?apiKey=${process.env.MCP_API_KEY}`
+                  : `http://<YOUR_IP>:${PORT}/sse`,
+                "--allow-http",
+              ],
             },
           },
           null,
@@ -125,6 +180,7 @@ async function main() {
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.error(`=======================================================`);
     console.error(`🚀 Portfolio Admin MCP Server running on port ${PORT}`);
+    console.error(`🔒 API Key Auth  : ${isAuthRequired ? "ENABLED (via process.env.MCP_API_KEY)" : "DISABLED (No key set)"}`);
     console.error(`🔗 SSE Endpoint : http://0.0.0.0:${PORT}/sse`);
     console.error(`🔗 MCP Endpoint : http://0.0.0.0:${PORT}/mcp`);
     console.error(`=======================================================`);
