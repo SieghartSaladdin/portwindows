@@ -1,93 +1,80 @@
-# Portfolio Model Context Protocol (MCP) Server
+# Portfolio Model Context Protocol (MCP) Server 🖥️
 
-This is a custom **Model Context Protocol (MCP) server** that exposes your portfolio database (projects, skills, experience, and bio) directly to AI assistants. It enables compatible AI systems to query, create, update, and delete elements in your database dynamically.
-
----
-
-## 🛠️ Features
-
-Exposes the following tools to the AI assistant:
-- **Profile / About Me**: `get_profile`, `update_profile`
-- **Projects Explorer**: `list_projects`, `create_project`, `update_project`, `delete_project`
-- **Skills Categories**: `list_skills`, `create_skill`, `update_skill`, `delete_skill`
-- **Professional Timeline**: `list_experiences`, `create_experience`, `update_experience`, `delete_experience`
+This repository includes a full-featured **Model Context Protocol (MCP) server** built with TypeScript & JSON-RPC (`@modelcontextprotocol/sdk`). It exposes your Admin Dashboard database (Profile, Projects, Skills, Experiences, and Dashboard Metrics) directly to local or remote AI assistants over **stdio**, **SSE**, or **Streamable HTTP**.
 
 ---
 
-## 🚀 Setup & Integration
+## 🛠️ Complete CRUD Tools Available
 
-The MCP server is built using the official **Streamable HTTP transport** standard (which combines both SSE and POST messages under a single, unified endpoint) and also supports standard local **stdio** execution.
+The MCP server provides complete CRUD (Create, Read, Update, Delete) & Diagnostic capabilities across all entities:
 
-You have two ways to run it:
+### 1. 📊 Dashboard Metrics
+- **`get_dashboard_stats`**: Get live system health, database status, and total count metrics (projects, skills, experiences, profile presence).
 
-### Option A: Built-in to Next.js (Port 3000)
-When you run your Next.js dev server (`npm run dev`) or host it in Docker, the MCP endpoint is automatically active on the same port:
-- **Unified Endpoint URL**: `http://localhost:3000/api/mcp`
-- *(No separate commands or ports to manage!)*
+### 2. 👤 Profile Management
+- **`get_profile`**: Retrieve developer profile information (name, title, location, email, bio, githubUrl, linkedinUrl).
+- **`update_profile`**: Update or create profile details.
 
-### Option B: Standalone Background Server (Port 3001)
-If you prefer running it independently of the Next.js frontend, run:
+### 3. 📂 Projects Repositories
+- **`list_projects`**: List all projects with optional query filtering and `featuredOnly` flag.
+- **`get_project`**: Retrieve single project details by unique ID or title.
+- **`create_project`**: Add a new project (title, description, tags, githubUrl, liveUrl, images, featured).
+- **`update_project`**: Edit any project attributes by ID.
+- **`delete_project`**: Permanently remove a project by ID.
+
+### 4. ⚡ Skills Matrix
+- **`list_skills`**: List all skill categories and associated tags.
+- **`get_skill`**: Retrieve single skill category by ID or category name.
+- **`create_skill`**: Add a new skill category and tag list.
+- **`update_skill`**: Update category name or skill tags by ID.
+- **`delete_skill`**: Delete a skill category by ID.
+
+### 5. 💼 Work Experiences
+- **`list_experiences`**: List all timeline work experience entries.
+- **`get_experience`**: Retrieve single experience entry by ID, role, or company name.
+- **`create_experience`**: Add a new work experience entry.
+- **`update_experience`**: Edit work experience details by ID.
+- **`delete_experience`**: Delete a work experience entry by ID.
+
+---
+
+## 🚀 Running the MCP Server
+
+Start the standalone MCP HTTP SSE Server on port `3002`:
+
 ```bash
-npm run mcp:sse
+npm run mcp
 ```
-- **Unified Endpoint URL**: `http://localhost:3001/mcp`
+
+Or run in local **stdio** mode for desktop clients (Claude Desktop / Cursor local binary):
+
+```bash
+npm run mcp:stdio
+```
 
 ---
 
-## 🖥️ AI Client Configuration
+## 🔌 Client Connection Options
 
-### 1. In Hermes Agent
-Add the following to your `~/.hermes/config.yaml` file (use your actual live domain if deployed to the cloud):
-```yaml
-mcp_servers:
-  portwindows-mcp:
-    url: "https://your-portfolio-domain.com/api/mcp"
-    transport: sse
-```
+### 1. Remote Client (`mcp-remote` / JSON-RPC over SSE)
+To connect remote AI clients using `mcp-remote`, add this block to your client configuration:
 
-### 2. In Cursor (IDE)
-1. Go to **Settings** (Gear icon in top-right) -> **Features** -> **MCP**.
-2. Click **+ Add New MCP Server**.
-3. Fill in:
-   - **Name**: `portwindows-mcp`
-   - **Type**: `SSE`
-   - **URL**: `http://localhost:3000/api/mcp` (or `http://localhost:3001/mcp` if running Option B).
-4. Click **Save**.
-
-### 3. In Windsurf (IDE)
-1. Go to **Settings** -> **Advanced** -> **MCP**.
-2. Add a new MCP server:
-   - **Name**: `portwindows-mcp`
-   - **Type**: `sse`
-   - **Endpoint**: `http://localhost:3000/api/mcp` (or `http://localhost:3001/mcp` if running Option B).
-3. Click **Add**.
-
-### 4. In Claude Desktop
-Edit your configuration file (`%APPDATA%\Claude\claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "portwindows-mcp": {
+    "portwindows-admin-mcp": {
       "command": "npx",
       "args": [
         "-y",
-        "tsx",
-        "c:/laragon/www/webapp/portwindows/src/mcp/index.ts"
-      ],
-      "cwd": "c:/laragon/www/webapp/portwindows"
+        "mcp-remote",
+        "http://<SERVER_IP>:3002/sse",
+        "--allow-http"
+      ]
     }
   }
 }
 ```
 
----
-
-## 🐋 Running in Docker
-
-When you run the project inside Docker, the MCP server runs automatically on the same container port!
-
-To ensure changes made by the AI persist when using Docker, mount the `prisma` directory as a volume. For example:
-```bash
-docker run -p 3000:3000 -v $(pwd)/prisma:/app/prisma rfieq/portwindows:latest
-```
-This maps the SQLite database to your host machine so that both the website inside the container and your AI tools on the host share the same database updates.
+### 2. In Cursor / Windsurf / Claude Desktop (SSE)
+- **URL**: `http://<SERVER_IP>:3002/sse` or `http://localhost:3000/api/mcp`
+- **Transport**: `SSE`

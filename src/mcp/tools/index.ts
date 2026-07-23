@@ -3,6 +3,7 @@ import { registerProfileTools } from "./profile";
 import { registerProjectsTools } from "./projects";
 import { registerSkillsTools } from "./skills";
 import { registerExperiencesTools } from "./experiences";
+import { registerStatsTools } from "./stats";
 
 // Helper for formatted text response
 export function textResponse(text: string) {
@@ -24,4 +25,5 @@ export function registerTools(server: McpServer) {
   registerProjectsTools(server);
   registerSkillsTools(server);
   registerExperiencesTools(server);
+  registerStatsTools(server);
 }

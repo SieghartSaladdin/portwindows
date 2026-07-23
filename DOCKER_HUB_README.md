@@ -28,7 +28,26 @@ Once running:
 
 Since the container runs the SSE endpoint, you can connect your AI assistants directly using the Server-Sent Events (SSE) URL.
 
-### 1. In Hermes Agent
+### 1. Remote Client (`mcp-remote`)
+Add the following to your AI client configuration (e.g. Cursor, Claude Desktop, or Hermes):
+
+```json
+{
+  "mcpServers": {
+    "portwindows-admin-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://<SERVER_IP>:3002/sse",
+        "--allow-http"
+      ]
+    }
+  }
+}
+```
+
+### 2. In Hermes Agent
 Add the following to your `~/.hermes/config.yaml` file:
 ```yaml
 mcp_servers:
