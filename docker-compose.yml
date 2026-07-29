@@ -1,10 +1,31 @@
 name: portwindows
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: portwindows-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-portfolio_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   portwindows:
     image: rfieq/portwindows:latest
     container_name: portwindows
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
       - "3002:3002"
@@ -20,14 +41,15 @@ services:
       - MCP_API_KEY=${MCP_API_KEY}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-Doraemon}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - DATABASE_URL=${DATABASE_URL:-file:./dev.db}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/portfolio_db?schema=public}
     env_file:
       - .env.local
-    volumes:
-      - ./prisma:/app/prisma
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
+
+volumes:
+  postgres_data:

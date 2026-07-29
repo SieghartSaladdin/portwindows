@@ -1,10 +1,11 @@
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { PrismaClient } from "../src/generated/client/client";
 import { PROFILE, PROJECTS, SKILLS, EXPERIENCES } from '../src/lib/data';
 
-const adapter = new PrismaBetterSqlite3({
-  url: "file:./prisma/dev.db",
-});
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/portfolio_db?schema=public";
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
@@ -61,7 +62,6 @@ async function main() {
   for (const exp of EXPERIENCES) {
     await prisma.experience.create({
       data: {
-        id: exp.id,
         role: exp.role,
         company: exp.company,
         duration: exp.duration,
@@ -71,14 +71,15 @@ async function main() {
   }
   console.log('Seeded experiences');
 
-  console.log('Database seeding completed successfully.');
+  console.log('Database seeding complete!');
 }
 
 main()
   .catch((e) => {
-    console.error('Error during seeding:', e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });

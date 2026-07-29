@@ -982,6 +982,7 @@ export type ExperienceCreateManyArgs<ExtArgs extends runtime.Types.Extensions.In
    * The data used to create many Experiences.
    */
   data: Prisma.ExperienceCreateManyInput | Prisma.ExperienceCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -1000,6 +1001,7 @@ export type ExperienceCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Exte
    * The data used to create many Experiences.
    */
   data: Prisma.ExperienceCreateManyInput | Prisma.ExperienceCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**

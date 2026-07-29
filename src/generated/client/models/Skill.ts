@@ -926,6 +926,7 @@ export type SkillCreateManyArgs<ExtArgs extends runtime.Types.Extensions.Interna
    * The data used to create many Skills.
    */
   data: Prisma.SkillCreateManyInput | Prisma.SkillCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
@@ -944,6 +945,7 @@ export type SkillCreateManyAndReturnArgs<ExtArgs extends runtime.Types.Extension
    * The data used to create many Skills.
    */
   data: Prisma.SkillCreateManyInput | Prisma.SkillCreateManyInput[]
+  skipDuplicates?: boolean
 }
 
 /**
