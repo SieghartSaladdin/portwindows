@@ -41,7 +41,13 @@ export const DESKTOP_ICONS: DesktopIcon[] = [
   { id: 'linkedin', title: 'LinkedIn', iconType: 'browser', action: 'openLink', url: 'https://linkedin.com' },
 ];
 
-export const PROFILE = {
+// ==============================================================================
+// INITIAL DUMMY / SEED DATA (Placeholder Data)
+// These records are seeded into PostgreSQL database by default.
+// You can edit or overwrite all of these via Developer Hub (/admin) or MCP.
+// ==============================================================================
+
+export const DUMMY_PROFILE = {
   name: 'Alex Mercer',
   title: 'Senior Frontend Developer & UI Architect',
   location: 'Seattle, WA',
@@ -51,7 +57,7 @@ export const PROFILE = {
 This interactive portfolio is structured like Windows 11 Pro, demonstrating my passion for desktop-grade web applications and high-fidelity user interface replications. Feel free to drag the windows, run commands in the Terminal, or browse my projects!`,
 };
 
-export const PROJECTS: Project[] = [
+export const DUMMY_PROJECTS: Project[] = [
   {
     id: '1',
     title: 'Cognitive OS',
@@ -93,7 +99,7 @@ export const PROJECTS: Project[] = [
   },
 ];
 
-export const EXPERIENCES: Experience[] = [
+export const DUMMY_EXPERIENCES: Experience[] = [
   {
     id: 'exp-1',
     role: 'Lead UI Architect',
@@ -118,7 +124,7 @@ export const EXPERIENCES: Experience[] = [
   },
 ];
 
-export const SKILLS: SkillGroup[] = [
+export const DUMMY_SKILLS: SkillGroup[] = [
   {
     category: 'Frontend Core',
     skills: ['TypeScript', 'JavaScript (ES6+)', 'React 19', 'Next.js App Router', 'HTML5 & CSS3'],
@@ -136,3 +142,9 @@ export const SKILLS: SkillGroup[] = [
     skills: ['Webpack', 'Vite', 'ESLint', 'Jest', 'React Testing Library'],
   },
 ];
+
+// Backward compatibility exports
+export const PROFILE = DUMMY_PROFILE;
+export const PROJECTS = DUMMY_PROJECTS;
+export const EXPERIENCES = DUMMY_EXPERIENCES;
+export const SKILLS = DUMMY_SKILLS;
