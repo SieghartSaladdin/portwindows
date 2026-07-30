@@ -70,7 +70,6 @@ export function StarkPet() {
         [241, 500, 756, 1005], // Row 2 (Left)
         [239, 499, 760, 1012]  // Row 3 (Up)
       ];
-      const startY = [65, 380, 660, 890];
 
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = img.width;
@@ -100,11 +99,38 @@ export function StarkPet() {
       }
       tempCtx.putImageData(imgData, 0, 0);
 
-      // Slice and draw each centered Stark sprite
+      // Auto-detect the exact bottom-most non-transparent pixel (boots) for each row
+      const rowYBounds = [
+        { min: 0, max: 320 },    // Row 0 (Down)
+        { min: 300, max: 620 },  // Row 1 (Right)
+        { min: 600, max: 920 },  // Row 2 (Left)
+        { min: 870, max: 1250 }, // Row 3 (Up)
+      ];
+
+      const bottomY: number[] = [];
+
       for (let r = 0; r < 4; r++) {
+        let foundBottom = rowYBounds[r].max;
+        const searchMin = rowYBounds[r].min;
+        
+        // Scan bottom-up across all columns in this row's height range
+        yScan: for (let y = Math.min(tempCanvas.height - 1, rowYBounds[r].max); y >= searchMin; y--) {
+          for (let x = 0; x < tempCanvas.width; x++) {
+            const alpha = pixels[(y * tempCanvas.width + x) * 4 + 3];
+            if (alpha > 30) {
+              foundBottom = y;
+              break yScan;
+            }
+          }
+        }
+        bottomY.push(foundBottom);
+      }
+
+      // Slice and draw each centered Stark sprite with exact boot baseline anchoring at Y = 250
+      for (let r = 0; r < 4; r++) {
+        const sY = bottomY[r] - 250;
         for (let c = 0; c < 4; c++) {
           const sX = centerX[r][c] - halfWidth;
-          const sY = startY[r];
           const dX = c * cellWidth;
           const dY = r * cellHeight;
 
@@ -160,7 +186,7 @@ export function StarkPet() {
     if (isSpawned && spawnStark && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.3 - scale / 2,
-        y: window.innerHeight - scale - 34,
+        y: window.innerHeight - scale - 45,
       });
     }
   }, [isSpawned, spawnStark, scale]);
@@ -174,7 +200,7 @@ export function StarkPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 34,
+          y: window.innerHeight - scale - 45,
         };
       });
     };
@@ -282,7 +308,7 @@ export function StarkPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 34; // Standing directly on top of taskbar floor line
+          const targetY = window.innerHeight - scale - 45; // Standing directly on top of taskbar floor line
 
           let nextX = pos.x + dx * starkSpeed;
           let reboundOccurred = false;
