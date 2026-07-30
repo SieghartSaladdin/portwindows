@@ -4,6 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/lib/store';
 import { playTextBlip } from '@/lib/audio';
+import {
+  buildGroundedPetSheet,
+  PET_CELL_HEIGHT,
+  PET_CELL_WIDTH,
+  PET_FLOOR_HEIGHT,
+} from '@/lib/petSprite';
 
 export function FernPet() {
   const { 
@@ -45,7 +51,7 @@ export function FernPet() {
     isWalkingRef.current = isWalking;
   }, [direction, isWalking]);
 
-  // 1. Dynamic Chroma-Keying & Centering for Fern
+  // 1. Dynamic Chroma-Keying & Foot-Baseline Grounding for Fern
   useEffect(() => {
     if (!isSpawned || !spawnFern) return;
 
@@ -53,17 +59,6 @@ export function FernPet() {
     img.src = '/sprites/fern.png';
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const cellWidth = 240;
-      const cellHeight = 280;
-      const halfWidth = 120;
-      const halfHeight = 140;
-
-      const newSheetCanvas = document.createElement('canvas');
-      newSheetCanvas.width = cellWidth * 4;
-      newSheetCanvas.height = cellHeight * 4;
-      const newCtx = newSheetCanvas.getContext('2d');
-      if (!newCtx) return;
-
       // 2D Centroids of each Fern sprite cell based on pixel activity
       const centerX = [
         [256, 483, 770, 998], // Row 0
@@ -71,72 +66,33 @@ export function FernPet() {
         [255, 494, 756, 994],  // Row 2
         [256, 485, 764, 998]   // Row 3
       ];
-      // Disjoint Y starting offsets to completely prevent row-to-row bleed
-      const startY = [52, 345, 625, 886];
 
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = img.width;
-      tempCanvas.height = img.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      if (!tempCtx) return;
-      tempCtx.drawImage(img, 0, 0);
+      const sheet = buildGroundedPetSheet(img, {
+        centerX,
+        legacyStartY: [52, 345, 625, 886],
+      });
+      if (!sheet) return;
 
-      const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-      const pixels = imgData.data;
-
-      // Extract key color from top-left pixel
-      const keyR = pixels[0];
-      const keyG = pixels[1];
-      const keyB = pixels[2];
-
-      // Replace matching background color with transparent
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-
-        // Tolerance of 15 to handle slight compression artifacts
-        if (Math.abs(r - keyR) < 15 && Math.abs(g - keyG) < 15 && Math.abs(b - keyB) < 15) {
-          pixels[i + 3] = 0;
-        }
-      }
-      tempCtx.putImageData(imgData, 0, 0);
-
-      // Slice and draw each centered Fern sprite
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < 4; c++) {
-          const sX = centerX[r][c] - halfWidth;
-          const sY = startY[r];
-          const dX = c * cellWidth;
-          const dY = r * cellHeight;
-
-          newCtx.drawImage(
-            tempCanvas,
-            sX, sY, cellWidth, cellHeight,
-            dX, dY, cellWidth, cellHeight
-          );
-        }
-      }
-
-      setTransparentImg(newSheetCanvas.toDataURL());
+      setTransparentImg(sheet.dataUrl);
 
       // Create a secondary canvas for talking animation
       const talkingCanvas = document.createElement('canvas');
-      talkingCanvas.width = cellWidth * 4;
-      talkingCanvas.height = cellHeight * 4;
+      talkingCanvas.width = PET_CELL_WIDTH * 4;
+      talkingCanvas.height = PET_CELL_HEIGHT * 4;
       const talkingCtx = talkingCanvas.getContext('2d');
       if (talkingCtx) {
         // Draw the normal spritesheet onto it first
-        talkingCtx.drawImage(newSheetCanvas, 0, 0);
-        
+        talkingCtx.drawImage(sheet.canvas, 0, 0);
+
         // Draw open mouths on the talking spritesheet in rows 0, 1, 2
         talkingCtx.fillStyle = 'rgb(85, 35, 35)'; // Dark reddish brown mouth cavity
-        
+
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 4; c++) {
-            const dX = c * cellWidth;
-            const dY = r * cellHeight;
-            
+            const dX = c * PET_CELL_WIDTH;
+            // Follow the frame down by however much grounding moved it
+            const dY = r * PET_CELL_HEIGHT + sheet.cellShift[r][c];
+
             if (r === 0) { // Down
               const mouthX = 120;
               const mouthY = 112; // Precise Y center relative to startY[0]
@@ -162,7 +118,7 @@ export function FernPet() {
     if (isSpawned && spawnFern && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.7 - scale / 2,
-        y: window.innerHeight - scale - 48,
+        y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
       });
     }
   }, [isSpawned, spawnFern, scale]);
@@ -176,7 +132,7 @@ export function FernPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 48,
+          y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
         };
       });
     };
@@ -284,7 +240,8 @@ export function FernPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
+          // Cell bottom is the foot baseline, so this lands the boots on the taskbar line
+          const targetY = window.innerHeight - scale - PET_FLOOR_HEIGHT;
 
           let nextX = pos.x + dx * fernSpeed;
           let reboundOccurred = false;

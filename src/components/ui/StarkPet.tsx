@@ -4,6 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/lib/store';
 import { playTextBlip } from '@/lib/audio';
+import {
+  buildGroundedPetSheet,
+  PET_CELL_HEIGHT,
+  PET_CELL_WIDTH,
+  PET_FLOOR_HEIGHT,
+} from '@/lib/petSprite';
 
 export function StarkPet() {
   const { 
@@ -45,7 +51,7 @@ export function StarkPet() {
     isWalkingRef.current = isWalking;
   }, [direction, isWalking]);
 
-  // 1. Dynamic Chroma-Keying & Centering for Stark
+  // 1. Dynamic Chroma-Keying & Foot-Baseline Grounding for Stark
   useEffect(() => {
     if (!isSpawned || !spawnStark) return;
 
@@ -53,84 +59,36 @@ export function StarkPet() {
     img.src = '/sprites/stark.png';
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const cellWidth = 240;
-      const cellHeight = 280;
-      const halfWidth = 120;
-
-      const newSheetCanvas = document.createElement('canvas');
-      newSheetCanvas.width = cellWidth * 4;
-      newSheetCanvas.height = cellHeight * 4;
-      const newCtx = newSheetCanvas.getContext('2d');
-      if (!newCtx) return;
-
-      // Centroids and safe starting Y values for Stark
+      // Centroids of each Stark sprite cell
       const centerX = [
         [244, 504, 762, 1014], // Row 0 (Down)
         [244, 506, 767, 1018], // Row 1 (Right)
         [241, 500, 756, 1005], // Row 2 (Left)
         [239, 499, 760, 1012]  // Row 3 (Up)
       ];
-      const startY = [65, 350, 630, 890];
 
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = img.width;
-      tempCanvas.height = img.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      if (!tempCtx) return;
-      tempCtx.drawImage(img, 0, 0);
+      const sheet = buildGroundedPetSheet(img, {
+        centerX,
+        legacyStartY: [65, 350, 630, 890],
+      });
+      if (!sheet) return;
 
-      const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-      const pixels = imgData.data;
-
-      // Extract key color from top-left pixel
-      const keyR = pixels[0];
-      const keyG = pixels[1];
-      const keyB = pixels[2];
-
-      // Replace matching background color with transparent
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-
-        // Tolerance of 15 to handle slight compression artifacts
-        if (Math.abs(r - keyR) < 15 && Math.abs(g - keyG) < 15 && Math.abs(b - keyB) < 15) {
-          pixels[i + 3] = 0;
-        }
-      }
-      tempCtx.putImageData(imgData, 0, 0);
-
-      // Slice and draw each centered Stark sprite
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < 4; c++) {
-          const sX = centerX[r][c] - halfWidth;
-          const sY = startY[r];
-          const dX = c * cellWidth;
-          const dY = r * cellHeight;
-
-          newCtx.drawImage(
-            tempCanvas,
-            sX, sY, cellWidth, cellHeight,
-            dX, dY, cellWidth, cellHeight
-          );
-        }
-      }
-
-      setTransparentImg(newSheetCanvas.toDataURL());
+      setTransparentImg(sheet.dataUrl);
 
       // Create a secondary canvas for talking mouth animation
       const talkingCanvas = document.createElement('canvas');
-      talkingCanvas.width = cellWidth * 4;
-      talkingCanvas.height = cellHeight * 4;
+      talkingCanvas.width = PET_CELL_WIDTH * 4;
+      talkingCanvas.height = PET_CELL_HEIGHT * 4;
       const talkingCtx = talkingCanvas.getContext('2d');
       if (talkingCtx) {
-        talkingCtx.drawImage(newSheetCanvas, 0, 0);
+        talkingCtx.drawImage(sheet.canvas, 0, 0);
         talkingCtx.fillStyle = 'rgb(85, 35, 35)'; // Dark mouth cavity
 
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 4; c++) {
-            const dX = c * cellWidth;
-            const dY = r * cellHeight;
+            const dX = c * PET_CELL_WIDTH;
+            // Follow the frame down by however much grounding moved it
+            const dY = r * PET_CELL_HEIGHT + sheet.cellShift[r][c];
 
             if (r === 0) { // Down
               const mouthX = 120;
@@ -157,7 +115,7 @@ export function StarkPet() {
     if (isSpawned && spawnStark && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.3 - scale / 2,
-        y: window.innerHeight - scale - 48,
+        y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
       });
     }
   }, [isSpawned, spawnStark, scale]);
@@ -171,7 +129,7 @@ export function StarkPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 48,
+          y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
         };
       });
     };
@@ -279,7 +237,8 @@ export function StarkPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
+          // Cell bottom is the foot baseline, so this lands the boots on the taskbar line
+          const targetY = window.innerHeight - scale - PET_FLOOR_HEIGHT;
 
           let nextX = pos.x + dx * starkSpeed;
           let reboundOccurred = false;
