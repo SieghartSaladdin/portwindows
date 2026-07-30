@@ -71,8 +71,8 @@ export function FernPet() {
         [255, 494, 756, 994],  // Row 2
         [256, 485, 764, 998]   // Row 3
       ];
-      // Disjoint Y starting offsets to completely prevent row-to-row bleed
-      const startY = [52, 345, 625, 886];
+      // Disjoint Y starting offsets adjusted so feet in left/right walk hit the exact same bottom baseline
+      const startY = [52, 360, 640, 886];
 
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = img.width;
@@ -141,13 +141,13 @@ export function FernPet() {
               const mouthX = 120;
               const mouthY = 112; // Precise Y center relative to startY[0]
               talkingCtx.fillRect(dX + mouthX - 3, dY + mouthY, 6, 4);
-            } else if (r === 1) { // Left (r === 1 is Left in Fern's getDirectionRow)
+            } else if (r === 1) { // Left
               const mouthX = 118;
-              const mouthY = 103; // Precise Y center relative to startY[1]
+              const mouthY = 103;
               talkingCtx.fillRect(dX + mouthX - 1, dY + mouthY, 3, 4);
-            } else if (r === 2) { // Right (r === 2 is Right in Fern's getDirectionRow)
+            } else if (r === 2) { // Right
               const mouthX = 122;
-              const mouthY = 116; // Precise Y center relative to startY[2]
+              const mouthY = 116;
               talkingCtx.fillRect(dX + mouthX - 2, dY + mouthY, 3, 4);
             }
           }
@@ -162,7 +162,7 @@ export function FernPet() {
     if (isSpawned && spawnFern && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.7 - scale / 2,
-        y: window.innerHeight - scale - 48,
+        y: window.innerHeight - scale - 52,
       });
     }
   }, [isSpawned, spawnFern, scale]);
@@ -176,7 +176,7 @@ export function FernPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 48,
+          y: window.innerHeight - scale - 52,
         };
       });
     };

@@ -75,8 +75,8 @@ export function FrierenPet() {
         [272, 490, 768, 1002], // Row 2
         [263, 481, 760, 997]   // Row 3
       ];
-      // Disjoint Y starting offsets to completely prevent row-to-row bleed
-      const startY = [50, 340, 620, 896];
+      // Disjoint Y starting offsets adjusted so feet in left/right walk hit the exact same bottom baseline
+      const startY = [50, 356, 636, 896];
 
       // Draw original image on temp canvas to key out background color
       const tempCanvas = document.createElement('canvas');
@@ -144,7 +144,7 @@ export function FrierenPet() {
             
             if (r === 0) { // Down
               const mouthX = 120;
-              const mouthY = 106; // Precise Y center relative to startY[0]
+              const mouthY = 112; // Precise Y center relative to startY[0]
               talkingCtx.fillRect(dX + mouthX - 3, dY + mouthY, 6, 4);
             } else if (r === 1) { // Right
               const mouthX = 122;
@@ -167,7 +167,7 @@ export function FrierenPet() {
     if (isSpawned && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth / 2 - scale / 2,
-        y: window.innerHeight - scale - 48,
+        y: window.innerHeight - scale - 52,
       });
     }
   }, [isSpawned, scale]);
@@ -181,7 +181,7 @@ export function FrierenPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 48,
+          y: window.innerHeight - scale - 52,
         };
       });
     };

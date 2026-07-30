@@ -63,14 +63,14 @@ export function StarkPet() {
       const newCtx = newSheetCanvas.getContext('2d');
       if (!newCtx) return;
 
-      // Centroids and safe starting Y values for Stark
+      // Centroids and safe starting Y values for Stark adjusted for exact taskbar floor alignment
       const centerX = [
         [244, 504, 762, 1014], // Row 0 (Down)
         [244, 506, 767, 1018], // Row 1 (Right)
         [241, 500, 756, 1005], // Row 2 (Left)
         [239, 499, 760, 1012]  // Row 3 (Up)
       ];
-      const startY = [65, 350, 630, 890];
+      const startY = [65, 380, 660, 890];
 
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = img.width;
@@ -118,31 +118,34 @@ export function StarkPet() {
 
       setTransparentImg(newSheetCanvas.toDataURL());
 
-      // Create a secondary canvas for talking mouth animation
+      // Create a secondary canvas for talking animation
       const talkingCanvas = document.createElement('canvas');
       talkingCanvas.width = cellWidth * 4;
       talkingCanvas.height = cellHeight * 4;
       const talkingCtx = talkingCanvas.getContext('2d');
       if (talkingCtx) {
+        // Draw the normal spritesheet onto it first
         talkingCtx.drawImage(newSheetCanvas, 0, 0);
-        talkingCtx.fillStyle = 'rgb(85, 35, 35)'; // Dark mouth cavity
-
+        
+        // Draw open mouths on the talking spritesheet in rows 0, 1, 2
+        talkingCtx.fillStyle = 'rgb(85, 35, 35)';
+        
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 4; c++) {
             const dX = c * cellWidth;
             const dY = r * cellHeight;
-
+            
             if (r === 0) { // Down
               const mouthX = 120;
-              const mouthY = 124;
+              const mouthY = 110;
               talkingCtx.fillRect(dX + mouthX - 3, dY + mouthY, 6, 4);
-            } else if (r === 1) { // Right (Row 1 is Right-facing for Stark)
-              const mouthX = 124;
-              const mouthY = 123;
+            } else if (r === 1) { // Right
+              const mouthX = 122;
+              const mouthY = 96;
               talkingCtx.fillRect(dX + mouthX - 2, dY + mouthY, 3, 4);
-            } else if (r === 2) { // Left (Row 2 is Left-facing for Stark)
-              const mouthX = 116;
-              const mouthY = 123;
+            } else if (r === 2) { // Left
+              const mouthX = 118;
+              const mouthY = 118;
               talkingCtx.fillRect(dX + mouthX - 1, dY + mouthY, 3, 4);
             }
           }
@@ -152,12 +155,12 @@ export function StarkPet() {
     };
   }, [isSpawned, spawnStark]);
 
-  // Initial spawn point
+  // Center-left spawn point for Stark
   useEffect(() => {
     if (isSpawned && spawnStark && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.3 - scale / 2,
-        y: window.innerHeight - scale - 48,
+        y: window.innerHeight - scale - 52,
       });
     }
   }, [isSpawned, spawnStark, scale]);
@@ -171,7 +174,7 @@ export function StarkPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 48,
+          y: window.innerHeight - scale - 52,
         };
       });
     };
