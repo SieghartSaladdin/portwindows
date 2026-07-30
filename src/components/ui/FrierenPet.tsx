@@ -68,13 +68,15 @@ export function FrierenPet() {
       const newCtx = newSheetCanvas.getContext('2d');
       if (!newCtx) return;
 
-      // 2D Centroids of each sprite cell based on pixel analysis of the 1254x1254 sheet
+      // 2D Centroids of each sprite cell based on pixel analysis of the new 1254x1254 sheet
       const centerX = [
         [266, 482, 765, 1003], // Row 0
         [266, 496, 764, 996],  // Row 1
         [272, 490, 768, 1002], // Row 2
         [263, 481, 760, 997]   // Row 3
       ];
+      // Disjoint Y starting offsets to completely prevent row-to-row bleed
+      const startY = [50, 340, 620, 896];
 
       // Draw original image on temp canvas to key out background color
       const tempCanvas = document.createElement('canvas');
@@ -105,45 +107,18 @@ export function FrierenPet() {
       }
       tempCtx.putImageData(imgData, 0, 0);
 
-      // Auto-detect the exact bottom-most non-transparent pixel (boots) for each row
-      const rowYBounds = [
-        { min: 0, max: 320 },    // Row 0 (Down)
-        { min: 300, max: 620 },  // Row 1 (Right)
-        { min: 600, max: 920 },  // Row 2 (Left)
-        { min: 870, max: 1250 }, // Row 3 (Up)
-      ];
-
-      const bottomY: number[] = [];
-
+      // Slice and draw each centered sprite to the aligned spritesheet
       for (let r = 0; r < 4; r++) {
-        let foundBottom = rowYBounds[r].max;
-        const searchMin = rowYBounds[r].min;
-        
-        // Scan bottom-up across all columns in this row's height range
-        yScan: for (let y = Math.min(tempCanvas.height - 1, rowYBounds[r].max); y >= searchMin; y--) {
-          for (let x = 0; x < tempCanvas.width; x++) {
-            const alpha = pixels[(y * tempCanvas.width + x) * 4 + 3];
-            if (alpha > 30) {
-              foundBottom = y;
-              break yScan;
-            }
-          }
-        }
-        bottomY.push(foundBottom);
-      }
-
-      // Slice and draw each centered sprite with exact boot baseline anchoring at Y = 250
-      for (let r = 0; r < 4; r++) {
-        const sY = bottomY[r] - 250;
         for (let c = 0; c < 4; c++) {
           const sX = centerX[r][c] - halfWidth;
+          const sY = startY[r];
           const dX = c * cellWidth;
           const dY = r * cellHeight;
-
+          
           newCtx.drawImage(
             tempCanvas,
-            sX, sY, cellWidth, cellHeight,
-            dX, dY, cellWidth, cellHeight
+            sX, sY, cellWidth, cellHeight, // Crop source
+            dX, dY, cellWidth, cellHeight  // Draw destination
           );
         }
       }
@@ -160,7 +135,7 @@ export function FrierenPet() {
         talkingCtx.drawImage(newSheetCanvas, 0, 0);
         
         // Draw open mouths on the talking spritesheet in rows 0, 1, 2
-        talkingCtx.fillStyle = 'rgb(85, 35, 35)';
+        talkingCtx.fillStyle = 'rgb(85, 35, 35)'; // Dark reddish brown mouth cavity
         
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 4; c++) {
@@ -169,15 +144,15 @@ export function FrierenPet() {
             
             if (r === 0) { // Down
               const mouthX = 120;
-              const mouthY = 112;
+              const mouthY = 106; // Precise Y center relative to startY[0]
               talkingCtx.fillRect(dX + mouthX - 3, dY + mouthY, 6, 4);
             } else if (r === 1) { // Right
               const mouthX = 122;
-              const mouthY = 96;
+              const mouthY = 96;  // Precise Y center relative to startY[1]
               talkingCtx.fillRect(dX + mouthX - 2, dY + mouthY, 3, 4);
             } else if (r === 2) { // Left
               const mouthX = 118;
-              const mouthY = 118;
+              const mouthY = 118; // Precise Y center relative to startY[2]
               talkingCtx.fillRect(dX + mouthX - 1, dY + mouthY, 3, 4);
             }
           }
@@ -192,7 +167,7 @@ export function FrierenPet() {
     if (isSpawned && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth / 2 - scale / 2,
-        y: window.innerHeight - scale - 45,
+        y: window.innerHeight - scale - 48,
       });
     }
   }, [isSpawned, scale]);
@@ -206,7 +181,7 @@ export function FrierenPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 45,
+          y: window.innerHeight - scale - 48,
         };
       });
     };
@@ -308,7 +283,7 @@ export function FrierenPet() {
           setPosition((pos) => {
             const currentScale = scaleRef.current;
             const maxX = window.innerWidth - currentScale;
-            const targetY = window.innerHeight - currentScale - 45; // Standing directly on top of taskbar floor line
+            const targetY = window.innerHeight - currentScale - 52; // Standing directly on top of taskbar floor line
 
             return {
               x: Math.max(0, Math.min(maxX, pos.x + moveX)),

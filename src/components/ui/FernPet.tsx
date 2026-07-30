@@ -71,6 +71,8 @@ export function FernPet() {
         [255, 494, 756, 994],  // Row 2
         [256, 485, 764, 998]   // Row 3
       ];
+      // Disjoint Y starting offsets to completely prevent row-to-row bleed
+      const startY = [52, 345, 625, 886];
 
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = img.width;
@@ -100,38 +102,11 @@ export function FernPet() {
       }
       tempCtx.putImageData(imgData, 0, 0);
 
-      // Auto-detect the exact bottom-most non-transparent pixel (boots) for each row
-      const rowYBounds = [
-        { min: 0, max: 320 },    // Row 0 (Down)
-        { min: 300, max: 620 },  // Row 1 (Left)
-        { min: 600, max: 920 },  // Row 2 (Right)
-        { min: 870, max: 1250 }, // Row 3 (Up)
-      ];
-
-      const bottomY: number[] = [];
-
+      // Slice and draw each centered Fern sprite
       for (let r = 0; r < 4; r++) {
-        let foundBottom = rowYBounds[r].max;
-        const searchMin = rowYBounds[r].min;
-        
-        // Scan bottom-up across all columns in this row's height range
-        yScan: for (let y = Math.min(tempCanvas.height - 1, rowYBounds[r].max); y >= searchMin; y--) {
-          for (let x = 0; x < tempCanvas.width; x++) {
-            const alpha = pixels[(y * tempCanvas.width + x) * 4 + 3];
-            if (alpha > 30) {
-              foundBottom = y;
-              break yScan;
-            }
-          }
-        }
-        bottomY.push(foundBottom);
-      }
-
-      // Slice and draw each centered Fern sprite with exact boot baseline anchoring at Y = 250
-      for (let r = 0; r < 4; r++) {
-        const sY = bottomY[r] - 250;
         for (let c = 0; c < 4; c++) {
           const sX = centerX[r][c] - halfWidth;
+          const sY = startY[r];
           const dX = c * cellWidth;
           const dY = r * cellHeight;
 
@@ -166,13 +141,13 @@ export function FernPet() {
               const mouthX = 120;
               const mouthY = 112; // Precise Y center relative to startY[0]
               talkingCtx.fillRect(dX + mouthX - 3, dY + mouthY, 6, 4);
-            } else if (r === 1) { // Left
+            } else if (r === 1) { // Left (r === 1 is Left in Fern's getDirectionRow)
               const mouthX = 118;
-              const mouthY = 103;
+              const mouthY = 103; // Precise Y center relative to startY[1]
               talkingCtx.fillRect(dX + mouthX - 1, dY + mouthY, 3, 4);
-            } else if (r === 2) { // Right
+            } else if (r === 2) { // Right (r === 2 is Right in Fern's getDirectionRow)
               const mouthX = 122;
-              const mouthY = 116;
+              const mouthY = 116; // Precise Y center relative to startY[2]
               talkingCtx.fillRect(dX + mouthX - 2, dY + mouthY, 3, 4);
             }
           }
@@ -187,7 +162,7 @@ export function FernPet() {
     if (isSpawned && spawnFern && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.7 - scale / 2,
-        y: window.innerHeight - scale - 45,
+        y: window.innerHeight - scale - 48,
       });
     }
   }, [isSpawned, spawnFern, scale]);
@@ -201,7 +176,7 @@ export function FernPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 45,
+          y: window.innerHeight - scale - 48,
         };
       });
     };
@@ -309,7 +284,7 @@ export function FernPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 45; // Standing directly on top of taskbar floor line
+          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
 
           let nextX = pos.x + dx * fernSpeed;
           let reboundOccurred = false;

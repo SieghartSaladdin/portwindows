@@ -63,13 +63,14 @@ export function StarkPet() {
       const newCtx = newSheetCanvas.getContext('2d');
       if (!newCtx) return;
 
-      // Centroids and safe starting Y values for Stark adjusted for exact taskbar floor alignment
+      // Centroids and safe starting Y values for Stark
       const centerX = [
         [244, 504, 762, 1014], // Row 0 (Down)
         [244, 506, 767, 1018], // Row 1 (Right)
         [241, 500, 756, 1005], // Row 2 (Left)
         [239, 499, 760, 1012]  // Row 3 (Up)
       ];
+      const startY = [65, 350, 630, 890];
 
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = img.width;
@@ -99,38 +100,11 @@ export function StarkPet() {
       }
       tempCtx.putImageData(imgData, 0, 0);
 
-      // Auto-detect the exact bottom-most non-transparent pixel (boots) for each row
-      const rowYBounds = [
-        { min: 0, max: 320 },    // Row 0 (Down)
-        { min: 300, max: 620 },  // Row 1 (Right)
-        { min: 600, max: 920 },  // Row 2 (Left)
-        { min: 870, max: 1250 }, // Row 3 (Up)
-      ];
-
-      const bottomY: number[] = [];
-
+      // Slice and draw each centered Stark sprite
       for (let r = 0; r < 4; r++) {
-        let foundBottom = rowYBounds[r].max;
-        const searchMin = rowYBounds[r].min;
-        
-        // Scan bottom-up across all columns in this row's height range
-        yScan: for (let y = Math.min(tempCanvas.height - 1, rowYBounds[r].max); y >= searchMin; y--) {
-          for (let x = 0; x < tempCanvas.width; x++) {
-            const alpha = pixels[(y * tempCanvas.width + x) * 4 + 3];
-            if (alpha > 30) {
-              foundBottom = y;
-              break yScan;
-            }
-          }
-        }
-        bottomY.push(foundBottom);
-      }
-
-      // Slice and draw each centered Stark sprite with exact boot baseline anchoring at Y = 250
-      for (let r = 0; r < 4; r++) {
-        const sY = bottomY[r] - 250;
         for (let c = 0; c < 4; c++) {
           const sX = centerX[r][c] - halfWidth;
+          const sY = startY[r];
           const dX = c * cellWidth;
           const dY = r * cellHeight;
 
@@ -144,34 +118,31 @@ export function StarkPet() {
 
       setTransparentImg(newSheetCanvas.toDataURL());
 
-      // Create a secondary canvas for talking animation
+      // Create a secondary canvas for talking mouth animation
       const talkingCanvas = document.createElement('canvas');
       talkingCanvas.width = cellWidth * 4;
       talkingCanvas.height = cellHeight * 4;
       const talkingCtx = talkingCanvas.getContext('2d');
       if (talkingCtx) {
-        // Draw the normal spritesheet onto it first
         talkingCtx.drawImage(newSheetCanvas, 0, 0);
-        
-        // Draw open mouths on the talking spritesheet in rows 0, 1, 2
-        talkingCtx.fillStyle = 'rgb(85, 35, 35)';
-        
+        talkingCtx.fillStyle = 'rgb(85, 35, 35)'; // Dark mouth cavity
+
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 4; c++) {
             const dX = c * cellWidth;
             const dY = r * cellHeight;
-            
+
             if (r === 0) { // Down
               const mouthX = 120;
-              const mouthY = 110;
+              const mouthY = 124;
               talkingCtx.fillRect(dX + mouthX - 3, dY + mouthY, 6, 4);
-            } else if (r === 1) { // Right
-              const mouthX = 122;
-              const mouthY = 96;
+            } else if (r === 1) { // Right (Row 1 is Right-facing for Stark)
+              const mouthX = 124;
+              const mouthY = 123;
               talkingCtx.fillRect(dX + mouthX - 2, dY + mouthY, 3, 4);
-            } else if (r === 2) { // Left
-              const mouthX = 118;
-              const mouthY = 118;
+            } else if (r === 2) { // Left (Row 2 is Left-facing for Stark)
+              const mouthX = 116;
+              const mouthY = 123;
               talkingCtx.fillRect(dX + mouthX - 1, dY + mouthY, 3, 4);
             }
           }
@@ -181,12 +152,12 @@ export function StarkPet() {
     };
   }, [isSpawned, spawnStark]);
 
-  // Center-left spawn point for Stark
+  // Initial spawn point
   useEffect(() => {
     if (isSpawned && spawnStark && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.3 - scale / 2,
-        y: window.innerHeight - scale - 45,
+        y: window.innerHeight - scale - 48,
       });
     }
   }, [isSpawned, spawnStark, scale]);
@@ -200,7 +171,7 @@ export function StarkPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 45,
+          y: window.innerHeight - scale - 48,
         };
       });
     };
@@ -255,7 +226,7 @@ export function StarkPet() {
       aiTimerRef.current = setTimeout(runAIDecision, nextDelay);
     };
 
-    const aiTimerRef = { current: setTimeout(runAIDecision, 1000) };
+    const aiTimerRef = { current: setTimeout(runAIDecision, 1200) };
 
     return () => {
       clearTimeout(aiTimerRef.current);
@@ -308,7 +279,7 @@ export function StarkPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 45; // Standing directly on top of taskbar floor line
+          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
 
           let nextX = pos.x + dx * starkSpeed;
           let reboundOccurred = false;
