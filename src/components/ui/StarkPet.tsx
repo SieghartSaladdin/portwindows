@@ -160,7 +160,7 @@ export function StarkPet() {
     if (isSpawned && spawnStark && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.3 - scale / 2,
-        y: window.innerHeight - scale - 52,
+        y: window.innerHeight - scale - 34,
       });
     }
   }, [isSpawned, spawnStark, scale]);
@@ -174,7 +174,7 @@ export function StarkPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 52,
+          y: window.innerHeight - scale - 34,
         };
       });
     };
@@ -229,7 +229,7 @@ export function StarkPet() {
       aiTimerRef.current = setTimeout(runAIDecision, nextDelay);
     };
 
-    const aiTimerRef = { current: setTimeout(runAIDecision, 1200) };
+    const aiTimerRef = { current: setTimeout(runAIDecision, 1000) };
 
     return () => {
       clearTimeout(aiTimerRef.current);
@@ -282,7 +282,7 @@ export function StarkPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
+          const targetY = window.innerHeight - scale - 34; // Standing directly on top of taskbar floor line
 
           let nextX = pos.x + dx * starkSpeed;
           let reboundOccurred = false;

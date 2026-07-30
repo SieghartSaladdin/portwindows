@@ -75,8 +75,8 @@ export function FrierenPet() {
         [272, 490, 768, 1002], // Row 2
         [263, 481, 760, 997]   // Row 3
       ];
-      // Disjoint Y starting offsets adjusted so feet in left/right walk hit the exact same bottom baseline
-      const startY = [50, 356, 636, 896];
+      // Disjoint Y starting offsets adjusted so feet in all directions hit the exact same bottom baseline
+      const startY = [50, 366, 646, 896];
 
       // Draw original image on temp canvas to key out background color
       const tempCanvas = document.createElement('canvas');
@@ -107,7 +107,7 @@ export function FrierenPet() {
       }
       tempCtx.putImageData(imgData, 0, 0);
 
-      // Slice and draw each centered sprite to the aligned spritesheet
+      // Slice and draw each centered sprite
       for (let r = 0; r < 4; r++) {
         for (let c = 0; c < 4; c++) {
           const sX = centerX[r][c] - halfWidth;
@@ -167,7 +167,7 @@ export function FrierenPet() {
     if (isSpawned && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth / 2 - scale / 2,
-        y: window.innerHeight - scale - 52,
+        y: window.innerHeight - scale - 34,
       });
     }
   }, [isSpawned, scale]);
@@ -181,7 +181,7 @@ export function FrierenPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 52,
+          y: window.innerHeight - scale - 34,
         };
       });
     };
@@ -283,7 +283,7 @@ export function FrierenPet() {
           setPosition((pos) => {
             const currentScale = scaleRef.current;
             const maxX = window.innerWidth - currentScale;
-            const targetY = window.innerHeight - currentScale - 52; // Standing directly on top of taskbar floor line
+            const targetY = window.innerHeight - currentScale - 34; // Standing directly on top of taskbar floor line
 
             return {
               x: Math.max(0, Math.min(maxX, pos.x + moveX)),

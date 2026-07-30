@@ -71,8 +71,8 @@ export function FernPet() {
         [255, 494, 756, 994],  // Row 2
         [256, 485, 764, 998]   // Row 3
       ];
-      // Disjoint Y starting offsets adjusted so feet in left/right walk hit the exact same bottom baseline
-      const startY = [52, 360, 640, 886];
+      // Disjoint Y starting offsets adjusted so feet in all directions hit the exact same bottom baseline
+      const startY = [52, 368, 648, 886];
 
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = img.width;
@@ -162,7 +162,7 @@ export function FernPet() {
     if (isSpawned && spawnFern && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth * 0.7 - scale / 2,
-        y: window.innerHeight - scale - 52,
+        y: window.innerHeight - scale - 34,
       });
     }
   }, [isSpawned, spawnFern, scale]);
@@ -176,7 +176,7 @@ export function FernPet() {
         const maxX = window.innerWidth - scale;
         return {
           x: Math.max(0, Math.min(maxX, pos.x)),
-          y: window.innerHeight - scale - 52,
+          y: window.innerHeight - scale - 34,
         };
       });
     };
@@ -284,7 +284,7 @@ export function FernPet() {
 
         setPosition((pos) => {
           const maxX = window.innerWidth - scale;
-          const targetY = window.innerHeight - scale - 52; // Standing directly on top of taskbar floor line
+          const targetY = window.innerHeight - scale - 34; // Standing directly on top of taskbar floor line
 
           let nextX = pos.x + dx * fernSpeed;
           let reboundOccurred = false;
