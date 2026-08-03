@@ -18,7 +18,7 @@ export function registerStatsTools(server: McpServer) {
 
         return jsonResponse({
           status: "ONLINE",
-          engine: "SQLite (dev.db)",
+          engine: "PostgreSQL (portfolio_db)",
           orm: "Prisma Client",
           metrics: {
             totalProjects: projectsCount,

@@ -56,6 +56,11 @@ interface OSStore {
   isLocked: boolean;
   isWidgetsOpen: boolean;
   isQuickSettingsOpen: boolean;
+  isNotificationCenterOpen: boolean;
+  unreadNotificationsCount: number;
+  toggleNotificationCenter: () => void;
+  closeNotificationCenter: () => void;
+  clearNotificationsBadge: () => void;
   confirmDialog: {
     isOpen: boolean;
     title: string;
@@ -433,9 +438,29 @@ export const useOSStore = create<OSStore>((set, get) => ({
   setIsWidgetsOpen: (open) => set({ isWidgetsOpen: open }),
   setIsQuickSettingsOpen: (open) => set({ isQuickSettingsOpen: open }),
 
+  isNotificationCenterOpen: false,
+  unreadNotificationsCount: 4,
+  toggleNotificationCenter: () => {
+    set((state) => ({
+      isNotificationCenterOpen: !state.isNotificationCenterOpen,
+      unreadNotificationsCount: 0,
+      isQuickSettingsOpen: false,
+      startMenuOpen: false,
+      taskViewOpen: false,
+      isWidgetsOpen: false,
+    }));
+  },
+  closeNotificationCenter: () => {
+    set({ isNotificationCenterOpen: false });
+  },
+  clearNotificationsBadge: () => {
+    set({ unreadNotificationsCount: 0 });
+  },
+
   toggleQuickSettings: () => {
     set((state) => ({ 
       isQuickSettingsOpen: !state.isQuickSettingsOpen,
+      isNotificationCenterOpen: false,
       startMenuOpen: false,
       taskViewOpen: false,
       isWidgetsOpen: false

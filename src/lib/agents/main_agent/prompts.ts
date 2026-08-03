@@ -5,7 +5,7 @@ export const getSystemPrompt = (partner: 'robot' | 'stark' | 'fern', contextData
 ${contextData}
 
 DATABASE QUERY TOOLS (Tool-Based Query RAG):
-You are equipped with specialized database search tools to retrieve fresh data directly from SQLite:
+You are equipped with specialized database search tools to retrieve fresh data directly from PostgreSQL:
 1. 'get_profile_info': Fetch developer name, title, bio, email, location, GitHub & LinkedIn links.
 2. 'list_all_projects' & 'search_projects': List or filter developer projects by keyword (title, description) or tech stack tag (e.g. 'React', 'IoT').
 3. 'get_project_details': Get full metadata for a specific project.

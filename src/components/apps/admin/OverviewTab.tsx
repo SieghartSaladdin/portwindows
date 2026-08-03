@@ -31,7 +31,7 @@ export function OverviewTab({
 
         {/* Pastel Yellow Badge */}
         <span className="bg-[#fef08a] text-[#2d2a26] border-2 border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] font-extrabold rounded-full px-3 py-1 text-xs">
-          ✦ SQLite Online
+          ✦ PostgreSQL Online
         </span>
       </div>
 
@@ -102,7 +102,7 @@ export function OverviewTab({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-xs font-mono">
           <div className="flex justify-between py-2 border-b-2 border-[#2d2a26]">
             <span className={isDark ? 'text-slate-400' : 'text-zinc-600'}>Database Engine</span>
-            <span className={`font-extrabold ${isDark ? 'text-slate-200' : 'text-[#2d2a26]'}`}>SQLite (dev.db)</span>
+            <span className={`font-extrabold ${isDark ? 'text-slate-200' : 'text-[#2d2a26]'}`}>PostgreSQL (portfolio_db)</span>
           </div>
           <div className="flex justify-between py-2 border-b-2 border-[#2d2a26]">
             <span className={isDark ? 'text-slate-400' : 'text-zinc-600'}>ORM Manager</span>

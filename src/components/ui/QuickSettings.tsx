@@ -28,7 +28,8 @@ export function QuickSettings() {
     wallpaper, 
     setWallpaper,
     themeMode,
-    toggleThemeMode
+    toggleThemeMode,
+    openWindow
   } = useOSStore();
 
   // Local state for Quick Settings toggles
@@ -60,6 +61,18 @@ export function QuickSettings() {
     setWallpaper(wallpapers[nextIndex]);
   };
 
+  const isDark = themeMode === 'dark';
+
+  // Tile helper styling for high contrast
+  const getTileStyle = (active: boolean, activeBg: string = 'bg-sky-400') => {
+    if (active) {
+      return `${activeBg} text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]`;
+    }
+    return isDark 
+      ? 'bg-zinc-900 text-slate-200 hover:bg-zinc-800 shadow-[3px_3px_0px_0px_#2d2a26]' 
+      : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#fef08a] shadow-[3px_3px_0px_0px_#2d2a26]';
+  };
+
   return (
     <AnimatePresence>
       <motion.div
@@ -68,57 +81,49 @@ export function QuickSettings() {
         exit={{ opacity: 0, y: 50, scale: 0.95 }}
         transition={{ type: 'spring', damping: 25, stiffness: 350 }}
         className={`fixed bottom-14 right-3 w-[360px] rounded-2xl border-[2.5px] border-[#2d2a26] p-4 shadow-[6px_6px_0px_0px_#2d2a26] z-50 font-doodle select-none ${
-          themeMode === 'dark' ? 'bg-[#262422] text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
+          isDark ? 'bg-[#262422] text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
         }`}
       >
         {/* Toggle Grid */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
+        <div className="grid grid-cols-3 gap-2.5 mb-4">
           {/* Theme Mode Toggle Tile */}
           <button
             onClick={toggleThemeMode}
             className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${
               themeMode === 'light' 
                 ? 'bg-[#fef08a] text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
-                : 'bg-zinc-800 text-amber-300 shadow-[3px_3px_0px_0px_#2d2a26]'
+                : 'bg-amber-400 text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]'
             }`}
           >
-            {themeMode === 'light' ? <Sun className="w-5 h-5 mb-1.5 text-[#2d2a26]" /> : <Moon className="w-5 h-5 mb-1.5 text-amber-300" />}
-            <span className="text-[10px] font-extrabold truncate max-w-full">
+            {themeMode === 'light' ? <Sun className="w-5 h-5 mb-1.5 text-[#2d2a26]" /> : <Moon className="w-5 h-5 mb-1.5 text-[#2d2a26]" />}
+            <span className="text-[10.5px] font-extrabold truncate max-w-full">
               {themeMode === 'light' ? 'Mode Terang' : 'Mode Gelap'}
             </span>
-            <span className="text-[8.5px] opacity-80 font-bold uppercase truncate max-w-full">Tema OS</span>
+            <span className="text-[8.5px] font-bold uppercase truncate max-w-full opacity-80">Tema OS</span>
           </button>
 
           {/* Wifi */}
           <button
             onClick={() => setWifi(!wifi)}
-            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${
-              wifi 
-                ? 'bg-sky-400 text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
-                : 'bg-zinc-800/40 text-slate-400'
-            }`}
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${getTileStyle(wifi, 'bg-sky-400')}`}
           >
-            {wifi ? <Wifi className="w-5 h-5 mb-1.5" /> : <WifiOff className="w-5 h-5 mb-1.5" />}
-            <span className="text-[10px] font-extrabold truncate max-w-full">
-              {wifi ? 'Connected' : 'Off'}
+            {wifi ? <Wifi className="w-5 h-5 mb-1.5" /> : <WifiOff className="w-5 h-5 mb-1.5 text-rose-500" />}
+            <span className="text-[10.5px] font-extrabold truncate max-w-full">
+              {wifi ? 'Terhubung' : 'Mati'}
             </span>
-            <span className="text-[8.5px] opacity-80 font-bold uppercase truncate max-w-full">Wi-Fi</span>
+            <span className="text-[8.5px] font-bold uppercase truncate max-w-full opacity-80">Wi-Fi</span>
           </button>
 
           {/* Bluetooth */}
           <button
             onClick={() => setBluetooth(!bluetooth)}
-            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${
-              bluetooth 
-                ? 'bg-sky-400 text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
-                : 'bg-zinc-800/40 text-slate-400'
-            }`}
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${getTileStyle(bluetooth, 'bg-sky-400')}`}
           >
-            <Bluetooth className="w-5 h-5 mb-1.5" />
-            <span className="text-[10px] font-extrabold truncate max-w-full">
-              {bluetooth ? 'On' : 'Off'}
+            <Bluetooth className={`w-5 h-5 mb-1.5 ${bluetooth ? '' : 'text-slate-400'}`} />
+            <span className="text-[10.5px] font-extrabold truncate max-w-full">
+              {bluetooth ? 'Aktif' : 'Mati'}
             </span>
-            <span className="text-[8.5px] opacity-80 font-bold uppercase truncate max-w-full">Bluetooth</span>
+            <span className="text-[8.5px] font-bold uppercase truncate max-w-full opacity-80">Bluetooth</span>
           </button>
 
           {/* Airplane Mode */}
@@ -133,73 +138,65 @@ export function QuickSettings() {
                 setBluetooth(true);
               }
             }}
-            className={`flex flex-col items-center justify-between p-3 rounded-lg border transition-all ${
-              airplaneMode 
-                ? 'bg-sky-500 border-sky-400/30 text-white shadow-lg shadow-sky-500/20' 
-                : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
-            }`}
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${getTileStyle(airplaneMode, 'bg-amber-300')}`}
           >
-            <Plane className="w-5 h-5 mb-2" />
-            <span className="text-[10px] font-medium truncate max-w-full">
-              {airplaneMode ? 'On' : 'Off'}
+            <Plane className="w-5 h-5 mb-1.5" />
+            <span className="text-[10.5px] font-extrabold truncate max-w-full">
+              {airplaneMode ? 'Aktif' : 'Mati'}
             </span>
-            <span className="text-[8px] opacity-70 truncate max-w-full">Airplane</span>
+            <span className="text-[8.5px] font-bold uppercase truncate max-w-full opacity-80">Pesawat</span>
           </button>
 
           {/* Battery Saver */}
           <button
             onClick={() => setBatterySaver(!batterySaver)}
-            className={`flex flex-col items-center justify-between p-3 rounded-lg border transition-all ${
-              batterySaver 
-                ? 'bg-sky-500 border-sky-400/30 text-white shadow-lg shadow-sky-500/20' 
-                : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
-            }`}
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${getTileStyle(batterySaver, 'bg-emerald-400')}`}
           >
-            <Zap className="w-5 h-5 mb-2" />
-            <span className="text-[10px] font-medium truncate max-w-full">
-              {batterySaver ? 'On' : 'Off'}
+            <Zap className="w-5 h-5 mb-1.5" />
+            <span className="text-[10.5px] font-extrabold truncate max-w-full">
+              {batterySaver ? 'Aktif' : 'Mati'}
             </span>
-            <span className="text-[8px] opacity-70 truncate max-w-full">Saver</span>
+            <span className="text-[8.5px] font-bold uppercase truncate max-w-full opacity-80">Hemat Daya</span>
           </button>
 
           {/* Night Light */}
           <button
             onClick={() => setNightLight(!nightLight)}
-            className={`flex flex-col items-center justify-between p-3 rounded-lg border transition-all ${
-              nightLight 
-                ? 'bg-sky-500 border-sky-400/30 text-white shadow-lg shadow-sky-500/20' 
-                : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200'
-            }`}
+            className={`flex flex-col items-center justify-between p-3 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer ${getTileStyle(nightLight, 'bg-[#fca5a5]')}`}
           >
-            <MoonStar className="w-5 h-5 mb-2" />
-            <span className="text-[10px] font-medium truncate max-w-full">
-              {nightLight ? 'On' : 'Off'}
+            <MoonStar className="w-5 h-5 mb-1.5" />
+            <span className="text-[10.5px] font-extrabold truncate max-w-full">
+              {nightLight ? 'Aktif' : 'Mati'}
             </span>
-            <span className="text-[8px] opacity-70 truncate max-w-full">Night Light</span>
+            <span className="text-[8.5px] font-bold uppercase truncate max-w-full opacity-80">Mode Malam</span>
           </button>
 
           {/* Theme Toggle (Wallpaper cycle) */}
           <button
             onClick={handleWallpaperCycle}
-            className="flex flex-col items-center justify-between p-3 rounded-lg border bg-white/5 border-white/5 text-slate-300 hover:bg-white/10 hover:text-slate-200 transition-all"
+            className={`col-span-3 flex items-center justify-between px-4 py-2.5 rounded-xl border-2 border-[#2d2a26] transition-all cursor-pointer shadow-[3px_3px_0px_0px_#2d2a26] ${
+              isDark ? 'bg-zinc-900 text-slate-100 hover:bg-zinc-800' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#fef08a]'
+            }`}
           >
-            <Sliders className="w-5 h-5 mb-2 text-indigo-400" />
-            <span className="text-[10px] font-medium truncate max-w-full capitalize">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs font-extrabold">Wallpaper Theme:</span>
+            </div>
+            <span className="text-xs font-mono font-extrabold uppercase bg-[#fef08a] text-[#2d2a26] px-2.5 py-0.5 rounded-full border border-[#2d2a26]">
               {wallpaper}
             </span>
-            <span className="text-[8px] opacity-70 truncate max-w-full">Theme</span>
           </button>
         </div>
 
         {/* Sliders Container */}
-        <div className="flex flex-col gap-4 py-2 border-t border-white/5">
+        <div className="flex flex-col gap-3 py-3 border-t-2 border-[#2d2a26]">
           {/* Volume Slider */}
           <div className="flex items-center gap-3">
             <button 
               onClick={toggleMute}
-              className="text-slate-400 hover:text-white transition-colors"
+              className={`p-1.5 rounded-lg border border-[#2d2a26] transition cursor-pointer ${isDark ? 'bg-zinc-800 text-slate-200' : 'bg-[#fffdfa] text-[#2d2a26]'}`}
             >
-              {volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              {volume === 0 ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4 text-emerald-600" />}
             </button>
             <div className="flex-1 flex items-center">
               <input
@@ -208,17 +205,17 @@ export function QuickSettings() {
                 max="100"
                 value={volume}
                 onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-full h-[4px] rounded-lg appearance-none cursor-pointer bg-white/10 accent-sky-500 focus:outline-none"
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer border-2 border-[#2d2a26] bg-[#fffdfa] accent-[#2d2a26] focus:outline-none"
               />
             </div>
-            <span className="text-xs font-mono w-7 text-right">{volume}</span>
+            <span className="text-xs font-mono font-bold w-7 text-right">{volume}%</span>
           </div>
 
           {/* Brightness Slider */}
           <div className="flex items-center gap-3">
-            <span className="text-slate-400">
-              <Sun className="w-5 h-5" />
-            </span>
+            <div className={`p-1.5 rounded-lg border border-[#2d2a26] ${isDark ? 'bg-zinc-800 text-amber-300' : 'bg-[#fffdfa] text-amber-600'}`}>
+              <Sun className="w-4 h-4" />
+            </div>
             <div className="flex-1 flex items-center">
               <input
                 type="range"
@@ -226,20 +223,19 @@ export function QuickSettings() {
                 max="100"
                 value={brightness}
                 onChange={(e) => setBrightness(Number(e.target.value))}
-                className="w-full h-[4px] rounded-lg appearance-none cursor-pointer bg-white/10 accent-sky-500 focus:outline-none"
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer border-2 border-[#2d2a26] bg-[#fffdfa] accent-[#2d2a26] focus:outline-none"
               />
             </div>
-            <span className="text-xs font-mono w-7 text-right">{brightness}</span>
+            <span className="text-xs font-mono font-bold w-7 text-right">{brightness}%</span>
           </div>
         </div>
 
         {/* Bottom Utility Bar */}
-        <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/5 text-slate-400">
+        <div className="flex items-center justify-between pt-3 mt-1 border-t-2 border-[#2d2a26]">
           {/* Battery Status */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-300">
-            <Battery className="w-4 h-4 text-emerald-400" />
-            <span className="font-semibold">82%</span>
-            <span className="text-[10px] opacity-75">Remaining</span>
+          <div className="flex items-center gap-1.5 text-xs font-bold">
+            <Battery className="w-4 h-4 text-emerald-600" />
+            <span>82% Remaining</span>
           </div>
 
           {/* Quick Settings Action Buttons */}
@@ -249,21 +245,24 @@ export function QuickSettings() {
                 closeQuickSettings();
                 lockScreen();
               }}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-xs"
+              className="px-3 py-1 rounded-full border-2 border-[#2d2a26] bg-[#fee2e2] text-rose-900 hover:bg-rose-300 transition-colors flex items-center gap-1 text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer"
               title="Lock Screen"
             >
-              <Lock className="w-3.5 h-3.5" />
+              <Lock className="w-3 h-3" />
               <span>Lock</span>
             </button>
             
-            <div className="w-[1px] h-4 bg-white/10" />
-
             <button 
-              onClick={closeQuickSettings}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-              title="Quick Settings"
+              onClick={() => {
+                closeQuickSettings();
+                openWindow('settings', 'Settings');
+              }}
+              className={`p-1.5 rounded-full border-2 border-[#2d2a26] transition-colors shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer ${
+                isDark ? 'bg-zinc-800 text-slate-200 hover:bg-zinc-700' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#fef08a]'
+              }`}
+              title="All Settings"
             >
-              <Settings className="w-4 h-4" />
+              <Settings className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

@@ -147,6 +147,21 @@ export function AdminApp() {
     showStatus('Developer Hub session locked.');
   };
 
+  // Helper to handle API errors and automatic token invalidation on 401
+  const handleApiResponse = async (res: Response, fallbackError: string) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        setToken(null);
+        setIsAuthorized(false);
+        throw new Error(data.error || 'Sesi login telah berakhir. Silakan login kembali.');
+      }
+      throw new Error(data.error || fallbackError);
+    }
+    return data;
+  };
+
   // Profile Update
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,10 +175,10 @@ export function AdminApp() {
         headers,
         body: JSON.stringify(profileForm),
       });
-      if (!res.ok) throw new Error('Failed to update profile');
-      const updated = await res.json();
+
+      const updated = await handleApiResponse(res, 'Gagal memperbarui profil');
       setProfile(updated);
-      showStatus('Profile updated successfully!');
+      showStatus('Profil berhasil diperbarui!');
     } catch (err: any) {
       showStatus(err.message || 'Error updating profile', 'error');
     } finally {
@@ -196,15 +211,14 @@ export function AdminApp() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error(`Failed to ${editingItem ? 'update' : 'create'} project`);
-      const data = await res.json();
+      const data = await handleApiResponse(res, `Gagal ${editingItem ? 'memperbarui' : 'membuat'} proyek`);
 
       if (editingItem) {
         setProjects(projects.map(p => p.id === editingItem.id ? data : p));
-        showStatus('Project updated successfully!');
+        showStatus('Proyek berhasil diperbarui!');
       } else {
         setProjects([...projects, data]);
-        showStatus('Project created successfully!');
+        showStatus('Proyek berhasil dibuat!');
       }
       closeModal();
     } catch (err: any) {
@@ -222,10 +236,10 @@ export function AdminApp() {
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch(`/api/projects/${id}`, { method: 'DELETE', headers });
-        if (!res.ok) throw new Error('Failed to delete project');
+        await handleApiResponse(res, 'Gagal menghapus proyek');
 
         setProjects(projects.filter(p => p.id !== id));
-        showStatus('Project deleted successfully!');
+        showStatus('Proyek berhasil dihapus!');
       } catch (err: any) {
         showStatus(err.message || 'Error deleting project', 'error');
       } finally {
@@ -257,15 +271,14 @@ export function AdminApp() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error(`Failed to ${editingItem ? 'update' : 'create'} skill group`);
-      const data = await res.json();
+      const data = await handleApiResponse(res, `Gagal ${editingItem ? 'memperbarui' : 'membuat'} grup skill`);
 
       if (editingItem) {
         setSkills(skills.map(s => s.id === editingItem.id ? data : s));
-        showStatus('Skill group updated successfully!');
+        showStatus('Grup skill berhasil diperbarui!');
       } else {
         setSkills([...skills, data]);
-        showStatus('Skill group created successfully!');
+        showStatus('Grup skill berhasil dibuat!');
       }
       closeModal();
     } catch (err: any) {
@@ -283,10 +296,10 @@ export function AdminApp() {
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch(`/api/skills/${id}`, { method: 'DELETE', headers });
-        if (!res.ok) throw new Error('Failed to delete skill group');
+        await handleApiResponse(res, 'Gagal menghapus grup skill');
 
         setSkills(skills.filter(s => s.id !== id));
-        showStatus('Skill group deleted successfully!');
+        showStatus('Grup skill berhasil dihapus!');
       } catch (err: any) {
         showStatus(err.message || 'Error deleting skill group', 'error');
       } finally {
@@ -318,15 +331,14 @@ export function AdminApp() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error(`Failed to ${editingItem ? 'update' : 'create'} experience`);
-      const data = await res.json();
+      const data = await handleApiResponse(res, `Gagal ${editingItem ? 'memperbarui' : 'membuat'} pengalaman kerja`);
 
       if (editingItem) {
         setExperiences(experiences.map(exp => exp.id === editingItem.id ? data : exp));
-        showStatus('Experience updated successfully!');
+        showStatus('Pengalaman kerja berhasil diperbarui!');
       } else {
         setExperiences([...experiences, data]);
-        showStatus('Experience created successfully!');
+        showStatus('Pengalaman kerja berhasil dibuat!');
       }
       closeModal();
     } catch (err: any) {
@@ -344,10 +356,10 @@ export function AdminApp() {
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch(`/api/experiences/${id}`, { method: 'DELETE', headers });
-        if (!res.ok) throw new Error('Failed to delete experience');
+        await handleApiResponse(res, 'Gagal menghapus pengalaman kerja');
 
         setExperiences(experiences.filter(exp => exp.id !== id));
-        showStatus('Experience deleted successfully!');
+        showStatus('Pengalaman kerja berhasil dihapus!');
       } catch (err: any) {
         showStatus(err.message || 'Error deleting experience', 'error');
       } finally {

@@ -197,17 +197,6 @@ export function Taskbar() {
           <span className={`font-doodle text-xs font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>{time || '12:00 PM'}</span>
           <span className={`hidden sm:inline font-doodle text-xs border-l border-dashed border-[#2d2a26] pl-1.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>{date || '6/11/2026'}</span>
         </button>
-
-        {/* Action Center */}
-        <button
-          className={`flex items-center justify-center w-8 h-8 rounded-xl border-[2px] border-[#2d2a26] transition relative shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer ${
-            isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-slate-300' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
-          }`}
-          title="Notifications"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border border-[#2d2a26]" />
-        </button>
       </div>
     </div>
   );
