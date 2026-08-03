@@ -8,14 +8,20 @@ import {
   Volume2, 
   Battery, 
   MessageSquare,
-  Search,
-  FileText,
-  Folder,
-  Terminal,
-  Settings,
-  Tv,
-  Gamepad2
+  Bell,
+  Tv
 } from 'lucide-react';
+import { 
+  DoodleHomeIcon,
+  DoodleSearchIcon,
+  DoodleWidgetsIcon,
+  DoodleBioIcon,
+  DoodleFolderIcon,
+  DoodleTerminalIcon,
+  DoodleSettingsIcon,
+  DoodlePetIcon,
+  DoodleAdminIcon
+} from '@/components/ui/DoodleIcons';
 
 export function Taskbar() {
   const { 
@@ -28,17 +34,24 @@ export function Taskbar() {
     focusWindow,
     setStartMenuSearchFocused,
     toggleTaskView,
-    taskViewOpen
+    taskViewOpen,
+    isQuickSettingsOpen,
+    toggleQuickSettings,
+    isWidgetsOpen,
+    toggleWidgets,
+    themeMode
   } = useOSStore();
 
+  const isDark = themeMode === 'dark';
   const { time, date, fullDate } = useDateTime();
 
   const appIcons = [
-    { id: 'bio', title: 'Bio.txt', icon: <FileText className="w-5 h-5 text-emerald-400" /> },
-    { id: 'projects', title: 'Projects', icon: <Folder className="w-5 h-5 text-amber-400" /> },
-    { id: 'terminal', title: 'Terminal', icon: <Terminal className="w-5 h-5 text-indigo-400" /> },
-    { id: 'settings', title: 'Settings', icon: <Settings className="w-5 h-5 text-blue-400" /> },
-    { id: 'frieren', title: 'Frieren.exe', icon: <Gamepad2 className="w-5 h-5 text-rose-400" /> },
+    { id: 'bio', title: 'Bio.txt', icon: <DoodleBioIcon className="w-5 h-5" /> },
+    { id: 'projects', title: 'Projects', icon: <DoodleFolderIcon className="w-5 h-5" /> },
+    { id: 'terminal', title: 'Aura Terminal', icon: <DoodleTerminalIcon className="w-5 h-5" /> },
+    { id: 'settings', title: 'Settings', icon: <DoodleSettingsIcon className="w-5 h-5" /> },
+    { id: 'frieren', title: 'Frieren.exe', icon: <DoodlePetIcon className="w-5 h-5" /> },
+    { id: 'admin', title: 'Developer Hub', icon: <DoodleAdminIcon className="w-5 h-5" /> },
   ];
 
   const handleAppClick = (id: string, title: string) => {
@@ -55,40 +68,48 @@ export function Taskbar() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-12 z-50 flex items-center justify-between px-3 select-none border-t border-white/5 win-mica-dark bg-black/30 text-white">
-      {/* Invisible spacer for left aligning */}
-      <div className="w-[180px] hidden sm:flex items-center gap-3">
-        {/* Left indicators (e.g. Widgets) */}
-        <div className="text-xs text-slate-300 hover:bg-white/10 px-2 py-1 rounded cursor-default transition">
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
-            <span>Cloudy 68°F</span>
-          </div>
-        </div>
+    <div className={`fixed bottom-0 left-0 right-0 z-50 w-full h-13 min-h-[52px] border-t-[3px] border-[#2d2a26] shadow-[0px_-4px_0px_0px_#2d2a26] backdrop-blur-xl flex items-center justify-between px-4 select-none ${
+      isDark ? 'bg-[#262422]' : 'bg-[#fcf9f2]'
+    }`}>
+      
+      {/* Left indicators (e.g. Widgets / Weather) */}
+      <div className="hidden sm:flex items-center gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleWidgets();
+          }}
+          className={`flex items-center gap-2 px-3 py-1 rounded-xl border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] transition font-doodle text-xs cursor-pointer ${
+            isWidgetsOpen 
+              ? 'bg-[#fef08a] text-[#2d2a26]' 
+              : isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-slate-300' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
+          }`}
+          title="Widgets Board"
+        >
+          <DoodleWidgetsIcon className="w-4 h-4" />
+          <span className="font-doodle text-xs tracking-wide font-bold">Cloudy 68°F</span>
+        </button>
       </div>
 
-      {/* Centered Taskbar Icons */}
-      <div className="flex items-center gap-1 mx-auto">
-        {/* Windows Start Button */}
+      {/* Centered Taskbar Controls & Apps */}
+      <div className="flex items-center gap-2 mx-auto">
+        {/* Doodle Home Start Button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             toggleStartMenu();
           }}
-          className={`win-start-btn flex items-center justify-center w-10 h-10 rounded-[4px] hover:bg-white/10 transition-colors group cursor-default ${
-            startMenuOpen ? 'bg-white/10' : ''
+          className={`win-start-btn flex items-center justify-center w-10 h-10 rounded-xl border-[2.5px] border-[#2d2a26] transition-all duration-200 cursor-pointer ${
+            startMenuOpen 
+              ? 'bg-[#fef08a] shadow-[2px_2px_0px_0px_#2d2a26] scale-95' 
+              : isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 shadow-[3px_3px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] hover:bg-[#f5efe2] shadow-[3px_3px_0px_0px_#2d2a26]'
           }`}
-          title="Start"
+          title="Start Menu"
         >
-          <div className="grid grid-cols-2 gap-[2px] w-[15px] h-[15px] transform group-active:scale-90 transition-transform">
-            <div className="bg-sky-400 group-hover:bg-sky-300 rounded-[1px] transition-colors"></div>
-            <div className="bg-sky-400 group-hover:bg-sky-300 rounded-[1px] transition-colors"></div>
-            <div className="bg-sky-400 group-hover:bg-sky-300 rounded-[1px] transition-colors"></div>
-            <div className="bg-sky-400 group-hover:bg-sky-300 rounded-[1px] transition-colors"></div>
-          </div>
+          <DoodleHomeIcon className="w-6 h-6" />
         </button>
 
-        {/* Windows Search Shortcut */}
+        {/* Search Shortcut */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -97,105 +118,85 @@ export function Taskbar() {
             }
             setStartMenuSearchFocused(true);
           }}
-          className="win-search-btn flex items-center justify-center w-10 h-10 rounded-[4px] hover:bg-white/10 transition-colors cursor-default text-slate-300 hover:text-white"
+          className={`win-search-btn flex items-center justify-center w-9 h-9 rounded-xl border-[2px] border-[#2d2a26] transition shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer ${
+            isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-amber-300' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
+          }`}
           title="Search"
         >
-          <Search className="w-[18px] h-[18px] transform active:scale-90 transition-transform" />
+          <DoodleSearchIcon className="w-5 h-5" />
         </button>
 
-        {/* Task View Shortcut */}
-        <button
-          onClick={toggleTaskView}
-          className={`hidden sm:flex items-center justify-center w-10 h-10 rounded-[4px] hover:bg-white/10 transition-colors cursor-default text-slate-300 hover:text-white ${
-            taskViewOpen ? 'bg-white/10 text-white' : ''
-          }`}
-          title="Task View"
-        >
-          <Tv className="w-[18px] h-[18px] transform active:scale-90 transition-transform" />
-        </button>
+        {/* Sketchy divider */}
+        <div className="w-[2px] h-6 border-r-2 border-dashed border-[#2d2a26]/60 mx-1"></div>
 
-        {/* Vertical divider */}
-        <div className="w-[1px] h-6 bg-white/10 mx-1"></div>
-
-        {/* Taskbar Apps */}
+        {/* Taskbar Apps with Doodle Badges */}
         {appIcons.map((app) => {
           const wState = windows[app.id];
           const isOpen = wState?.isOpen;
           const isFocused = focusedWindowId === app.id && isOpen && !wState.isMinimized;
 
           return (
-            <div key={app.id} className="relative flex flex-col items-center group">
+            <div key={app.id} className="relative flex items-center group">
               <button
                 onClick={() => handleAppClick(app.id, app.title)}
                 className={`
-                  flex items-center justify-center w-10 h-10 rounded-[4px] transition-all cursor-default
-                  ${isFocused ? 'bg-white/10 text-white' : 'hover:bg-white/10 text-slate-300 hover:text-white'}
+                  flex items-center gap-1.5 px-2.5 py-1 rounded-xl border-[2px] border-[#2d2a26] transition-all duration-200 font-doodle text-xs cursor-pointer
+                  ${isFocused 
+                    ? 'bg-[#bae6fd] text-[#2d2a26] font-extrabold shadow-[2.5px_2.5px_0px_0px_#2d2a26]' 
+                    : isOpen 
+                      ? 'bg-[#dcfce7] text-[#2d2a26] font-bold shadow-[2px_2px_0px_0px_#2d2a26]' 
+                      : isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-slate-300 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]'
+                  }
                 `}
                 title={app.title}
               >
-                <div className="transform active:scale-80 transition-transform">
+                <div className="transform active:scale-90 transition-transform">
                   {app.icon}
                 </div>
+                {isOpen && (
+                  <span className="hidden md:inline-block font-doodle text-xs truncate max-w-[80px]">
+                    {app.title}
+                  </span>
+                )}
+                {isOpen && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${isFocused ? 'bg-sky-600 animate-pulse' : 'bg-emerald-600'}`} />
+                )}
               </button>
-
-              {/* Indicator Pill under icons */}
-              {isOpen && (
-                <span
-                  className={`
-                    absolute bottom-[2px] h-[3px] rounded-full transition-all duration-300
-                    ${isFocused 
-                      ? 'w-[16px] bg-win-accent-light' 
-                      : wState.isMinimized 
-                        ? 'w-[4px] bg-slate-500' 
-                        : 'w-[8px] bg-slate-400 group-hover:w-[12px]'
-                    }
-                  `}
-                />
-              )}
             </div>
           );
         })}
       </div>
 
-      {/* System Tray (Right Aligned) */}
-      <div className="w-[180px] flex items-center justify-end gap-1">
-        {/* Status Indicators */}
-        <div 
-          className="flex items-center gap-2.5 px-2.5 py-1 rounded-[4px] hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-default"
-          title="Network, Volume, and Battery status"
+      {/* Right Tray: System Controls & Sketchy Clock Badge */}
+      <div className="flex items-center gap-2">
+        {/* Quick Settings */}
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleQuickSettings();
+          }}
+          className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] transition cursor-pointer ${
+            isQuickSettingsOpen 
+              ? 'bg-[#fef08a] text-[#2d2a26]' 
+              : isDark ? 'text-slate-300 hover:text-white bg-zinc-900/80' : 'text-[#2d2a26] bg-[#fffdfa] hover:bg-[#f5efe2]'
+          }`}
+          title="Network, Volume, and Battery"
         >
-          <Wifi className="w-3.5 h-3.5" />
-          <Volume2 className="w-3.5 h-3.5" />
-          <Battery className="w-3.5 h-3.5" />
-        </div>
+          <Wifi className="w-3.5 h-3.5 text-sky-500" />
+          <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
+          <Battery className="w-3.5 h-3.5 text-amber-500" />
+        </button>
 
-        {/* Date and Time */}
+        {/* Clock Sketchy Doodle Badge */}
         <button
-          className="flex flex-col items-end px-2.5 py-1.5 rounded-[4px] hover:bg-white/10 hover:text-white text-slate-300 transition-colors cursor-default text-right leading-none"
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border-[2px] border-[#2d2a26] transition font-doodle shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer ${
+            isDark ? 'bg-zinc-900/90 hover:bg-zinc-800 text-slate-200' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
+          }`}
           title={fullDate}
         >
-          <span className="text-[11px] font-medium">{time || '12:00 PM'}</span>
-          <span className="text-[10px] text-slate-400 mt-[2px]">{date || '6/11/2026'}</span>
+          <span className={`font-doodle text-xs font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>{time || '12:00 PM'}</span>
+          <span className={`hidden sm:inline font-doodle text-xs border-l border-dashed border-[#2d2a26] pl-1.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>{date || '6/11/2026'}</span>
         </button>
-
-        {/* Action Center Widget */}
-        <button
-          className="flex items-center justify-center w-8 h-10 rounded-[4px] hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-default relative"
-          title="Notification Center"
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-win-accent-light rounded-full" />
-        </button>
-
-        {/* Show Desktop Sliver */}
-        <div 
-          onClick={() => {
-            // Close or minimize all open windows
-            appIcons.forEach(app => minimizeWindow(app.id));
-          }}
-          className="w-1.5 h-full hover:bg-white/5 border-l border-white/5 ml-1 cursor-default transition-colors"
-          title="Show Desktop"
-        />
       </div>
     </div>
   );

@@ -4,13 +4,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/lib/store';
 import { playTextBlip } from '@/lib/audio';
+import {
+  buildGroundedPetSheet,
+  PET_CELL_HEIGHT,
+  PET_CELL_WIDTH,
+  PET_FLOOR_HEIGHT,
+} from '@/lib/petSprite';
 
 export function FrierenPet() {
   const { 
     frierenConfig, 
     updateFrierenConfig, 
     frierenSpeech, 
-    setFrierenSpeech 
+    setFrierenSpeech,
+    activeChatPartner
   } = useOSStore();
   const { isSpawned, scale, speed, speechVolume } = frierenConfig;
 
@@ -47,7 +54,7 @@ export function FrierenPet() {
     scaleRef.current = scale;
   }, [scale]);
 
-  // 1. Dynamic Chroma-Keying & Centering to align grid sheets
+  // 1. Dynamic Chroma-Keying & Foot-Baseline Grounding to align grid sheets
   useEffect(() => {
     if (!isSpawned) return;
 
@@ -55,92 +62,40 @@ export function FrierenPet() {
     img.src = '/sprites/frieren.png';
     img.crossOrigin = 'anonymous'; // Prevent CORS issues if hosted elsewhere
     img.onload = () => {
-      // Create a perfectly aligned 4x4 sheet where each cell is exactly 240x280px
-      const cellWidth = 240;
-      const cellHeight = 280;
-      const halfWidth = 120;
-      const halfHeight = 140;
-      
-      const newSheetCanvas = document.createElement('canvas');
-      newSheetCanvas.width = cellWidth * 4;
-      newSheetCanvas.height = cellHeight * 4;
-      const newCtx = newSheetCanvas.getContext('2d');
-      if (!newCtx) return;
-
-      // 2D Centroids of each sprite cell based on pixel analysis of the new 1254x1254 sheet
+      // 2D Centroids of each sprite cell based on pixel analysis of the 1254x1254 sheet
       const centerX = [
         [266, 482, 765, 1003], // Row 0
         [266, 496, 764, 996],  // Row 1
         [272, 490, 768, 1002], // Row 2
         [263, 481, 760, 997]   // Row 3
       ];
-      // Disjoint Y starting offsets to completely prevent row-to-row bleed
-      const startY = [50, 340, 620, 896];
 
-      // Draw original image on temp canvas to key out background color
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = img.width;
-      tempCanvas.height = img.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      if (!tempCtx) return;
-      tempCtx.drawImage(img, 0, 0);
+      const sheet = buildGroundedPetSheet(img, {
+        centerX,
+        legacyStartY: [50, 340, 620, 896],
+      });
+      if (!sheet) return;
 
-      const imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-      const pixels = imgData.data;
-
-      // Extract key color from top-left pixel
-      const keyR = pixels[0];
-      const keyG = pixels[1];
-      const keyB = pixels[2];
-
-      // Remove matching background color
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-
-        // Tolerance of 15 to handle slight compression artifacts
-        if (Math.abs(r - keyR) < 15 && Math.abs(g - keyG) < 15 && Math.abs(b - keyB) < 15) {
-          pixels[i + 3] = 0;
-        }
-      }
-      tempCtx.putImageData(imgData, 0, 0);
-
-      // Slice and draw each centered sprite to the aligned spritesheet
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < 4; c++) {
-          const sX = centerX[r][c] - halfWidth;
-          const sY = startY[r];
-          const dX = c * cellWidth;
-          const dY = r * cellHeight;
-          
-          newCtx.drawImage(
-            tempCanvas,
-            sX, sY, cellWidth, cellHeight, // Crop source
-            dX, dY, cellWidth, cellHeight  // Draw destination
-          );
-        }
-      }
-
-      setTransparentImg(newSheetCanvas.toDataURL());
+      setTransparentImg(sheet.dataUrl);
 
       // Create a secondary canvas for talking animation
       const talkingCanvas = document.createElement('canvas');
-      talkingCanvas.width = cellWidth * 4;
-      talkingCanvas.height = cellHeight * 4;
+      talkingCanvas.width = PET_CELL_WIDTH * 4;
+      talkingCanvas.height = PET_CELL_HEIGHT * 4;
       const talkingCtx = talkingCanvas.getContext('2d');
       if (talkingCtx) {
         // Draw the normal spritesheet onto it first
-        talkingCtx.drawImage(newSheetCanvas, 0, 0);
-        
+        talkingCtx.drawImage(sheet.canvas, 0, 0);
+
         // Draw open mouths on the talking spritesheet in rows 0, 1, 2
         talkingCtx.fillStyle = 'rgb(85, 35, 35)'; // Dark reddish brown mouth cavity
-        
+
         for (let r = 0; r < 3; r++) {
           for (let c = 0; c < 4; c++) {
-            const dX = c * cellWidth;
-            const dY = r * cellHeight;
-            
+            const dX = c * PET_CELL_WIDTH;
+            // Follow the frame down by however much grounding moved it
+            const dY = r * PET_CELL_HEIGHT + sheet.cellShift[r][c];
+
             if (r === 0) { // Down
               const mouthX = 120;
               const mouthY = 106; // Precise Y center relative to startY[0]
@@ -166,9 +121,27 @@ export function FrierenPet() {
     if (isSpawned && typeof window !== 'undefined') {
       setPosition({
         x: window.innerWidth / 2 - scale / 2,
-        y: window.innerHeight / 2 - scale / 2 - 48,
+        y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
       });
     }
+  }, [isSpawned, scale]);
+
+  // Maintain vertical position relative to taskbar on window resize
+  useEffect(() => {
+    if (!isSpawned || typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setPosition((pos) => {
+        const maxX = window.innerWidth - scale;
+        return {
+          x: Math.max(0, Math.min(maxX, pos.x)),
+          y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
+        };
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [isSpawned, scale]);
 
   // 2. Sprite walking frame loops (runs at ~8Hz when walking)
@@ -183,6 +156,17 @@ export function FrierenPet() {
     }, 130);
 
     return () => clearInterval(timer);
+  }, [isSpawned, isWalking]);
+
+  // Turn Frieren to face down when idle for a short period
+  useEffect(() => {
+    if (!isSpawned || isWalking) return;
+
+    const timer = setTimeout(() => {
+      setDirection('down');
+    }, 1500); // 1.5 seconds of inactivity
+
+    return () => clearTimeout(timer);
   }, [isSpawned, isWalking]);
 
   // 3. Movement and Keyboard loops
@@ -223,16 +207,13 @@ export function FrierenPet() {
     const tick = (timestamp: number) => {
       if (pressedKeys.current.size > 0) {
         let dx = 0;
-        let dy = 0;
         let newDir = directionRef.current;
 
-        // Calculate movements based on keys pressed
+        // Calculate movements and directions based on keys pressed
         if (pressedKeys.current.has('w') || pressedKeys.current.has('arrowup')) {
-          dy = -1;
           newDir = 'up';
         }
         if (pressedKeys.current.has('s') || pressedKeys.current.has('arrowdown')) {
-          dy = 1;
           newDir = 'down';
         }
         if (pressedKeys.current.has('a') || pressedKeys.current.has('arrowleft')) {
@@ -250,20 +231,18 @@ export function FrierenPet() {
         }
 
         // Apply movement vector
-        if (dx !== 0 || dy !== 0) {
-          // Normalize diagonal speed
-          const length = Math.sqrt(dx * dx + dy * dy);
-          const moveX = (dx / length) * speedRef.current;
-          const moveY = (dy / length) * speedRef.current;
+        if (dx !== 0) {
+          const moveX = dx * speedRef.current;
 
           setPosition((pos) => {
             const currentScale = scaleRef.current;
             const maxX = window.innerWidth - currentScale;
-            const maxY = window.innerHeight - currentScale - 48; // Excluding taskbar (48px)
+            // Cell bottom is the foot baseline, so this lands the boots on the taskbar line
+            const targetY = window.innerHeight - currentScale - PET_FLOOR_HEIGHT;
 
             return {
               x: Math.max(0, Math.min(maxX, pos.x + moveX)),
-              y: Math.max(0, Math.min(maxY, pos.y + moveY)),
+              y: targetY,
             };
           });
         }
@@ -282,6 +261,34 @@ export function FrierenPet() {
       }
     };
   }, [isSpawned]);
+
+  // Face the active chat partner when in conversation
+  useEffect(() => {
+    if (!activeChatPartner || !isSpawned) return;
+
+    const facePartner = () => {
+      const frierenEl = document.getElementById('frieren-pet');
+      const partnerId = activeChatPartner === 'fern' ? 'fern-pet' : activeChatPartner === 'stark' ? 'stark-pet' : 'robot-pet';
+      const partnerEl = document.getElementById(partnerId);
+      
+      if (frierenEl && partnerEl) {
+        const r1 = frierenEl.getBoundingClientRect();
+        const r2 = partnerEl.getBoundingClientRect();
+        const c1x = r1.left + r1.width / 2;
+        const c2x = r2.left + r2.width / 2;
+        
+        if (c1x < c2x) {
+          setDirection('right');
+        } else {
+          setDirection('left');
+        }
+      }
+    };
+
+    facePartner();
+    const interval = setInterval(facePartner, 200);
+    return () => clearInterval(interval);
+  }, [activeChatPartner, isSpawned]);
 
   // 5. Silent Typewriter Speech Bubble & Mouth Animation
   useEffect(() => {
@@ -392,17 +399,15 @@ export function FrierenPet() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 px-4 py-2.5 bg-white text-zinc-900 border border-zinc-200/90 rounded-2xl shadow-xl text-xs w-max max-w-[380px] min-w-[80px] break-words font-semibold leading-relaxed text-center"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-[#fcf9f2] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] rounded-2xl text-xs w-max max-w-[380px] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
             style={{ 
-              imageRendering: 'auto', // Reset pixelation for text legibility
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3)'
+              imageRendering: 'auto',
             }}
           >
             {displayedSpeech}
-            {/* White speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white" />
-            {/* Outline speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-zinc-200 -z-10 mt-[0.5px]" />
+            {/* Doodle speech bubble pointer tail */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-[#2d2a26]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-[#fcf9f2] -mt-[1px]" />
           </motion.div>
         )}
       </AnimatePresence>

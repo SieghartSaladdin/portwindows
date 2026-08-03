@@ -1,20 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "Alex Mercer | Windows 11 Pro Portfolio",
-  description: "An interactive portfolio website mimicking the Windows 11 Pro desktop UI, built with Next.js, Tailwind CSS, Framer Motion, and Zustand.",
+  title: "Aura OS | Interactive Doodle Portfolio",
+  description: "An interactive desktop portfolio web application built with Next.js, Tailwind CSS, Framer Motion, Zustand, and PostgreSQL.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
@@ -30,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="antialiased overflow-hidden select-none bg-[#0f0f12] text-white">
+    <html lang="en">
+      <body className="antialiased overflow-hidden select-none bg-[#0f0f12] text-white font-doodle">
         {children}
       </body>
     </html>

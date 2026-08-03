@@ -10,9 +10,11 @@ export function FrierenApp() {
     updateFrierenConfig, 
     setFrierenSpeech, 
     setFernSpeech,
-    setStarkSpeech
+    setStarkSpeech,
+    themeMode
   } = useOSStore();
   const { isSpawned, spawnFern, spawnStark, scale, speed, speechVolume } = frierenConfig;
+  const isDark = themeMode === 'dark';
 
   // Automatically spawn Frieren, Fern, and Stark when the control app window is opened
   useEffect(() => {
@@ -20,27 +22,32 @@ export function FrierenApp() {
   }, [updateFrierenConfig]);
 
   return (
-    <div className="p-5 flex flex-col md:flex-row gap-6 bg-zinc-950/60 text-slate-100 select-none h-full overflow-y-auto">
+    <div className={`p-5 flex flex-col md:flex-row gap-6 font-mono select-none h-full overflow-y-auto ${
+      isDark ? 'bg-[#18181b] text-slate-100' : 'bg-[#fdfbf7] text-[#2d2a26]'
+    }`}>
       {/* Controls Column */}
       <div className="flex-1 flex flex-col gap-5">
-        <div className="flex items-center gap-2 mb-2">
-          <Gamepad2 className="w-5 h-5 text-rose-400 animate-pulse" />
-          <h2 className="text-base font-bold text-slate-100">Frieren.exe Control Panel</h2>
+        <div className="flex items-center gap-2 mb-2 pb-2 border-b-2 border-[#2d2a26]">
+          <span className="text-amber-500">✏</span>
+          <Gamepad2 className="w-5 h-5 text-amber-500" />
+          <h2 className={`text-base font-extrabold uppercase tracking-wide ${isDark ? 'text-white' : 'text-[#2d2a26]'}`}>Frieren.exe Control Panel</h2>
         </div>
 
         {/* Toggle Spawn */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+        <div className={`flex items-center justify-between p-3.5 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] ${
+          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
+        }`}>
           <div>
-            <h4 className="text-xs font-semibold text-slate-200">Spawn Frieren</h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">Toggle playable Frieren on the desktop</p>
+            <h4 className={`text-xs font-extrabold ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Spawn Frieren</h4>
+            <p className={`text-[10px] font-bold mt-0.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Toggle playable Frieren on the desktop</p>
           </div>
           <button
             onClick={() => updateFrierenConfig({ isSpawned: !isSpawned })}
             className={`
-              px-4 py-1.5 rounded-md text-xs font-bold transition cursor-default
+              px-4 py-1.5 rounded-full text-xs font-extrabold transition border-2 border-[#2d2a26] cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]
               ${isSpawned 
-                ? 'bg-rose-600 hover:bg-rose-500 text-white' 
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                ? 'bg-rose-400 hover:bg-rose-500 text-[#2d2a26]' 
+                : 'bg-[#fef08a] hover:bg-yellow-300 text-[#2d2a26]'
               }
             `}
           >
@@ -49,18 +56,20 @@ export function FrierenApp() {
         </div>
 
         {/* Toggle Fern Spawn */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+        <div className={`flex items-center justify-between p-3.5 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] ${
+          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
+        }`}>
           <div>
-            <h4 className="text-xs font-semibold text-slate-200">Spawn Fern (NPC)</h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">Toggle autonomous Fern on the desktop</p>
+            <h4 className={`text-xs font-extrabold ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Spawn Fern (NPC)</h4>
+            <p className={`text-[10px] font-bold mt-0.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Toggle autonomous Fern on the desktop</p>
           </div>
           <button
             onClick={() => updateFrierenConfig({ spawnFern: !spawnFern })}
             className={`
-              px-4 py-1.5 rounded-md text-xs font-bold transition cursor-default
+              px-4 py-1.5 rounded-full text-xs font-extrabold transition border-2 border-[#2d2a26] cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]
               ${spawnFern 
-                ? 'bg-rose-600 hover:bg-rose-500 text-white' 
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                ? 'bg-rose-400 hover:bg-rose-500 text-[#2d2a26]' 
+                : 'bg-[#fef08a] hover:bg-yellow-300 text-[#2d2a26]'
               }
             `}
           >
@@ -69,18 +78,20 @@ export function FrierenApp() {
         </div>
 
         {/* Toggle Stark Spawn */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+        <div className={`flex items-center justify-between p-3.5 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] ${
+          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
+        }`}>
           <div>
-            <h4 className="text-xs font-semibold text-slate-200">Spawn Stark (NPC)</h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">Toggle autonomous Stark on the desktop</p>
+            <h4 className={`text-xs font-extrabold ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Spawn Stark (NPC)</h4>
+            <p className={`text-[10px] font-bold mt-0.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Toggle autonomous Stark on the desktop</p>
           </div>
           <button
             onClick={() => updateFrierenConfig({ spawnStark: !spawnStark })}
             className={`
-              px-4 py-1.5 rounded-md text-xs font-bold transition cursor-default
+              px-4 py-1.5 rounded-full text-xs font-extrabold transition border-2 border-[#2d2a26] cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]
               ${spawnStark 
-                ? 'bg-rose-600 hover:bg-rose-500 text-white' 
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                ? 'bg-rose-400 hover:bg-rose-500 text-[#2d2a26]' 
+                : 'bg-[#fef08a] hover:bg-yellow-300 text-[#2d2a26]'
               }
             `}
           >
@@ -89,144 +100,112 @@ export function FrierenApp() {
         </div>
 
         {/* Size Slider */}
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+        <div className={`p-4 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] ${
+          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
+        }`}>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-semibold text-slate-200">Character Size</span>
-            <span className="text-xs text-rose-400 font-bold">{scale}px</span>
+            <span className={`text-xs font-extrabold ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Character Size</span>
+            <span className="text-xs bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] px-2 py-0.5 rounded-full font-extrabold">{scale}px</span>
           </div>
           <input
             type="range"
             min="48"
             max="128"
-            step="8"
             value={scale}
-            onChange={(e) => updateFrierenConfig({ scale: parseInt(e.target.value) })}
-            className="w-full accent-rose-500 cursor-pointer bg-zinc-800 h-1 rounded-lg outline-none"
+            onChange={(e) => updateFrierenConfig({ scale: Number(e.target.value) })}
+            className="w-full accent-[#fef08a] cursor-pointer"
           />
-          <div className="flex justify-between text-[9px] text-slate-500 mt-1">
-            <span>48px</span>
-            <span>Default (64px)</span>
-            <span>128px</span>
-          </div>
         </div>
 
         {/* Speed Slider */}
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+        <div className={`p-4 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] ${
+          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
+        }`}>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-semibold text-slate-200">Walking Speed</span>
-            <span className="text-xs text-rose-400 font-bold">{speed} px/frame</span>
+            <span className={`text-xs font-extrabold ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Movement Speed</span>
+            <span className="text-xs bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] px-2 py-0.5 rounded-full font-extrabold">{speed}px/s</span>
           </div>
           <input
             type="range"
-            min="2"
-            max="12"
-            step="1"
+            min="100"
+            max="500"
+            step="20"
             value={speed}
-            onChange={(e) => updateFrierenConfig({ speed: parseInt(e.target.value) })}
-            className="w-full accent-rose-500 cursor-pointer bg-zinc-800 h-1 rounded-lg outline-none"
+            onChange={(e) => updateFrierenConfig({ speed: Number(e.target.value) })}
+            className="w-full accent-[#fef08a] cursor-pointer"
           />
-          <div className="flex justify-between text-[9px] text-slate-500 mt-1">
-            <span>Slow (2)</span>
-            <span>Normal (5)</span>
-            <span>Fast (12)</span>
-          </div>
         </div>
 
-        {/* Text Scroll Volume Slider */}
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-semibold text-slate-200">Text Scroll Volume</span>
-            <span className="text-xs text-rose-400 font-bold">{Math.round(speechVolume * 100)}%</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={speechVolume}
-            onChange={(e) => updateFrierenConfig({ speechVolume: parseFloat(e.target.value) })}
-            className="w-full accent-rose-500 cursor-pointer bg-zinc-800 h-1 rounded-lg outline-none"
-          />
-          <div className="flex justify-between text-[9px] text-slate-500 mt-1">
-            <span>Mute (0%)</span>
-            <span>Default (50%)</span>
-            <span>Max (100%)</span>
-          </div>
-        </div>
-
-        {/* Conversation Memory */}
-        <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-3">
-          <div>
-            <h4 className="text-xs font-semibold text-slate-200">NPC Conversation Memory</h4>
-            <p className="text-[10px] text-slate-400 mt-0.5">Clears the saved chat history from localStorage</p>
-          </div>
-          <div className="flex gap-2">
+        {/* Speech Trigger Buttons */}
+        <div className={`p-4 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] flex flex-col gap-2.5 ${
+          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
+        }`}>
+          <span className={`text-xs font-extrabold ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Interactive Voice Triggers</span>
+          <div className="grid grid-cols-3 gap-2">
             <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('frieren_fern_chat_history');
-                  setFrierenSpeech(null);
-                  setFernSpeech(null);
-                }
-              }}
-              className="flex-1 py-2 rounded-md text-[10px] font-bold bg-rose-950/45 hover:bg-rose-900/60 border border-rose-500/35 hover:border-rose-500/60 text-rose-200 transition cursor-default text-center"
+              onClick={() => setFrierenSpeech("Aura... I'll analyze this code magic!")}
+              className="px-2 py-1.5 bg-[#fef08a] hover:bg-yellow-300 text-[#2d2a26] border-2 border-[#2d2a26] rounded-xl text-xs font-extrabold cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]"
             >
-              Clear Fern Memory
+              Frieren Speak
             </button>
             <button
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem('frieren_stark_chat_history');
-                  setFrierenSpeech(null);
-                  setStarkSpeech(null);
-                }
-              }}
-              className="flex-1 py-2 rounded-md text-[10px] font-bold bg-rose-950/45 hover:bg-rose-900/60 border border-rose-500/35 hover:border-rose-500/60 text-rose-200 transition cursor-default text-center"
+              onClick={() => setFernSpeech("Frieren-sama, please focus on the portfolio code.")}
+              className="px-2 py-1.5 bg-sky-200 hover:bg-sky-300 text-[#2d2a26] border-2 border-[#2d2a26] rounded-xl text-xs font-extrabold cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]"
             >
-              Clear Stark Memory
+              Fern Speak
+            </button>
+            <button
+              onClick={() => setStarkSpeech("I'll defend this desktop app with my axe!")}
+              className="px-2 py-1.5 bg-rose-200 hover:bg-rose-300 text-[#2d2a26] border-2 border-[#2d2a26] rounded-xl text-xs font-extrabold cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]"
+            >
+              Stark Speak
             </button>
           </div>
         </div>
       </div>
 
-      {/* Instructions Column */}
-      <div className="w-full md:w-60 flex flex-col gap-4">
-        <div className="p-4 rounded-xl bg-black/40 border border-white/5 flex flex-col gap-3">
-          <h3 className="text-xs font-bold text-slate-200">Movement Controls</h3>
-          
-          <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <div className="flex items-center gap-1.5 bg-white/5 p-1.5 rounded">
-              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300">W</kbd>
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300"><ArrowUp className="w-2.5 h-2.5" /></kbd>
-              <span className="text-slate-400 ml-1">Up</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-white/5 p-1.5 rounded">
-              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300">S</kbd>
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300"><ArrowDown className="w-2.5 h-2.5" /></kbd>
-              <span className="text-slate-400 ml-1">Down</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-white/5 p-1.5 rounded">
-              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300">A</kbd>
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300"><ArrowLeft className="w-2.5 h-2.5" /></kbd>
-              <span className="text-slate-400 ml-1">Left</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-white/5 p-1.5 rounded">
-              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300">D</kbd>
-              <kbd className="px-1 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-slate-300"><ArrowRight className="w-2.5 h-2.5" /></kbd>
-              <span className="text-slate-400 ml-1">Right</span>
-            </div>
-          </div>
+      {/* Manual / Instructions Column */}
+      <div className={`w-full md:w-64 p-4 rounded-2xl border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] flex flex-col gap-3 font-mono shrink-0 ${
+        isDark ? 'bg-zinc-900/90 text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
+      }`}>
+        <div className="flex items-center gap-2 border-b-2 border-[#2d2a26] pb-2">
+          <Info className="w-4 h-4 text-amber-500" />
+          <span className="text-xs font-extrabold uppercase">Keyboard Controls</span>
+        </div>
 
-          <div className="flex gap-2 items-start mt-2 border-t border-white/5 pt-2 text-[10px] text-slate-400 leading-normal">
-            <Info className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
-            <span>Frieren moves globally via WASD/Arrows. Fern wanders autonomously as an NPC. Control is paused while typing in terminal or notepad.</span>
+        <p className={`text-xs font-bold leading-relaxed ${isDark ? 'text-slate-300' : 'text-zinc-700'}`}>
+          Controllable Frieren character responds to arrow keys on your keyboard when active:
+        </p>
+
+        <div className="flex flex-col gap-2 my-1">
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Walk Left</span>
+            <kbd className="px-2 py-0.5 rounded-lg border-2 border-[#2d2a26] bg-[#fef08a] text-[#2d2a26] text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26]">
+              <ArrowLeft className="w-3 h-3 inline" /> Left
+            </kbd>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Walk Right</span>
+            <kbd className="px-2 py-0.5 rounded-lg border-2 border-[#2d2a26] bg-[#fef08a] text-[#2d2a26] text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26]">
+              <ArrowRight className="w-3 h-3 inline" /> Right
+            </kbd>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Jump / Up</span>
+            <kbd className="px-2 py-0.5 rounded-lg border-2 border-[#2d2a26] bg-[#fef08a] text-[#2d2a26] text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26]">
+              <ArrowUp className="w-3 h-3 inline" /> Up
+            </kbd>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Duck / Down</span>
+            <kbd className="px-2 py-0.5 rounded-lg border-2 border-[#2d2a26] bg-[#fef08a] text-[#2d2a26] text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26]">
+              <ArrowDown className="w-3 h-3 inline" /> Down
+            </kbd>
           </div>
         </div>
 
-        {/* Feature info */}
-        <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-900/35 text-[10px] text-rose-300 leading-normal flex gap-2">
-          <span>🧹</span>
-          <span>We've automatically chroma-keyed out the solid gray background of the sprite sheet using Canvas in real-time, giving you a transparent pixel-art pet!</span>
+        <div className={`p-3 rounded-xl border-2 border-[#2d2a26] bg-[#fef08a] text-[#2d2a26] text-[10.5px] font-extrabold leading-relaxed shadow-[2px_2px_0px_0px_#2d2a26]`}>
+          ✦ Pet Frieren floats freely across the screen and walks on top of the taskbar floor platform!
         </div>
       </div>
     </div>

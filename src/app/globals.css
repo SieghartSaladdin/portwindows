@@ -1,21 +1,150 @@
+@import url('https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@400..700&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #0f0f12;
+  --background: #181716;
   --foreground: #ffffff;
   
-  --win-accent: #0078d4;
-  --win-accent-light: #479ecf;
-  --win-bg-glass-light: rgba(243, 243, 243, 0.7);
-  --win-bg-glass-dark: rgba(32, 32, 32, 0.75);
+  --win-accent: #fef08a;
+  --win-accent-light: #bae6fd;
+  --win-bg-glass-light: rgba(253, 251, 247, 0.95);
+  --win-bg-glass-dark: rgba(24, 23, 22, 0.95);
   
-  --win-border-light: rgba(255, 255, 255, 0.4);
-  --win-border-dark: rgba(255, 255, 255, 0.08);
+  --win-border-light: #2d2a26;
+  --win-border-dark: #2d2a26;
+}
+
+.font-doodle {
+  font-family: 'Architects Daughter', 'Caveat', cursive, sans-serif;
+}
+
+/* Authentic Notebook Graph Paper Background (Dark OS Theme) */
+.bg-doodle-paper-dark {
+  background-color: #181716;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Authentic Notebook Graph Paper Background (Light Paper Theme) */
+.bg-doodle-paper-light {
+  background-color: #fdfbf7;
+  background-image: 
+    linear-gradient(rgba(45, 42, 38, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(45, 42, 38, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Notebook Margin Red Line Accent */
+.doodle-margin-line {
+  border-left: 2px solid rgba(239, 68, 68, 0.4);
+}
+
+.doodle-box {
+  border: 2.5px solid #2d2a26;
+  background-color: #262422;
+  box-shadow: 4px 4px 0px 0px #2d2a26;
+  border-radius: 18px;
+}
+
+.doodle-box-light {
+  border: 2.5px solid #2d2a26;
+  background-color: #fcf9f2;
+  color: #2d2a26;
+  box-shadow: 4px 4px 0px 0px #2d2a26;
+  border-radius: 18px;
+}
+
+.doodle-pill {
+  border: 2px solid #2d2a26;
+  border-radius: 9999px;
+  font-weight: bold;
+}
+
+.doodle-binder-line {
+  position: relative;
+  border-left: 2.5px dashed #2d2a26;
+}
+
+.doodle-binder-line::before {
+  content: '◯';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #2d2a26;
+  font-weight: bold;
+}
+
+.bg-doodle-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.border-doodle {
+  border: 2.5px solid #2d2a26;
+  box-shadow: 4px 4px 0px 0px #2d2a26;
+}
+
+.border-doodle-light {
+  border: 2.5px solid #2d2a26;
+  border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+}
+
+.doodle-card {
+  border: 2.5px solid #2d2a26;
+  border-radius: 18px;
+  background: #262422;
+  box-shadow: 4px 4px 0px 0px #2d2a26;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doodle-card:hover {
+  transform: translateY(-2px) rotate(-0.5deg);
+  box-shadow: 6px 6px 0px 0px #2d2a26;
+}
+
+/* Washi Tape Corner Accent */
+.doodle-washi-tape {
+  background: rgba(254, 240, 138, 0.85);
+  border: 1.5px solid #2d2a26;
+  box-shadow: 1px 1px 0px 0px #2d2a26;
+  transform: rotate(-3deg);
+}
+
+/* Sticky Note Post-It */
+.doodle-sticky-note {
+  background: #fef08a;
+  color: #2d2a26;
+  border: 2.5px solid #2d2a26;
+  box-shadow: 4px 4px 0px 0px #2d2a26;
+  border-radius: 12px;
 }
 
 @theme {
   --color-win-accent: var(--win-accent);
   --color-win-accent-light: var(--win-accent-light);
+  --animate-spin-slow: spin 15s linear infinite;
+  --animate-scanline: scanline 6s linear infinite;
+
+  @keyframes scanline {
+    0% {
+      top: 0%;
+    }
+    50% {
+      top: 100%;
+    }
+    100% {
+      top: 0%;
+    }
+  }
+}
+
+/* Custom background sizing for projector beam particles */
+.bg-size-custom {
+  background-size: 16px 16px;
+  background-image: radial-gradient(circle, rgba(34, 211, 238, 0.25) 1px, transparent 1.5px);
 }
 
 /* Base resets for desktop environment */
@@ -26,45 +155,44 @@ html, body {
   height: 100vh;
   overflow: hidden;
   user-select: none;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: #0f0f12;
+  font-family: 'Architects Daughter', 'Caveat', cursive, sans-serif;
+  background-color: #181716;
   color: var(--foreground);
 }
 
 /* Glassmorphism / Mica effect overrides */
 .win-mica-light {
-  background: var(--win-bg-glass-light);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid var(--win-border-light);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+  background: #fdfbf7;
+  border: 2.5px solid #2d2a26;
+  box-shadow: 6px 6px 0px 0px #2d2a26;
 }
 
 .win-mica-dark {
-  background: var(--win-bg-glass-dark);
-  backdrop-filter: blur(30px) saturate(160%);
-  -webkit-backdrop-filter: blur(30px) saturate(160%);
-  border: 1px solid var(--win-border-dark);
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.35);
+  background: #1e1c1a;
+  border: 2.5px solid #2d2a26;
+  box-shadow: 6px 6px 0px 0px #2d2a26;
 }
 
-/* Custom scrollbars inside application windows */
+/* Custom doodle scrollbars inside application windows */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 2px dashed #2d2a26;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
+  background: #fef08a;
+  border: 2px solid #2d2a26;
+  border-radius: 9999px;
+  box-shadow: 1px 1px 0px 0px #2d2a26;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: #fde047;
 }
 
 /* Minimize, maximize, close buttons transitions */

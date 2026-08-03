@@ -3,214 +3,461 @@
 import React, { useState } from 'react';
 import { 
   Folder, 
+  HardDrive, 
+  Monitor, 
+  FileText, 
   ArrowLeft, 
-  ArrowRight, 
-  RefreshCw, 
-  Search,
-  ExternalLink,
-  HardDrive,
-  FileCode,
-  LayoutGrid,
-  Menu,
-  ChevronRight
+  Search, 
+  Grid, 
+  List, 
+  Terminal
 } from 'lucide-react';
-import { PROJECTS, Project } from '@/lib/data';
+import { useOSStore } from '@/lib/store';
+import { ProjectDetailView } from './projects/ProjectDetailView';
 
-const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" className={props.className}>
-    <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.577.688.479C19.138 20.162 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+// Big Hand-Drawn SVG Folder Icon
+const DoodleFolderIcon = ({ className = "w-14 h-14" }: { className?: string }) => (
+  <svg className={`${className} text-amber-400 flex-shrink-0 filter drop-shadow-[2.5px_2.5px_0px_#2d2a26]`} viewBox="0 0 24 24" fill="none" stroke="#2d2a26" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 8 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z" fill="#fef08a" />
+    <path d="M2 10h20" stroke="#2d2a26" strokeWidth="2" />
   </svg>
 );
 
-export function ProjectsApp() {
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+// Hand-Drawn SVG Hard Drive Icon
+const DoodleDriveIcon = ({ className = "w-14 h-14" }: { className?: string }) => (
+  <svg className={`${className} text-sky-400 flex-shrink-0 filter drop-shadow-[2.5px_2.5px_0px_#2d2a26]`} viewBox="0 0 24 24" fill="none" stroke="#2d2a26" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="6" width="20" height="12" rx="3" fill="#bae6fd" />
+    <path d="M6 12h.01" stroke="#2d2a26" strokeWidth="3" strokeLinecap="round" />
+    <path d="M10 12h.01" stroke="#2d2a26" strokeWidth="3" strokeLinecap="round" />
+    <path d="M18 12h2" stroke="#2d2a26" strokeWidth="2.5" />
+  </svg>
+);
 
-  const filteredProjects = PROJECTS.filter((p) =>
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
+type NavigationPath = 'this-pc' | 'drive-c' | 'projects-d' | 'project-detail';
+
+export function ProjectsApp() {
+  const { projects, openWindow, themeMode } = useOSStore();
+  const isDark = themeMode === 'dark';
+  
+  const [currentPath, setCurrentPath] = useState<NavigationPath>('projects-d');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
+
+  const filteredProjects = projects.filter(p => 
+    p.title.toLowerCase().includes(filterQuery.toLowerCase()) ||
+    p.description.toLowerCase().includes(filterQuery.toLowerCase()) ||
+    p.tags.some((t: string) => t.toLowerCase().includes(filterQuery.toLowerCase()))
   );
 
-  return (
-    <div className="flex h-full bg-zinc-950/40 text-slate-100 select-none">
-      {/* Explorer Sidebar */}
-      <div className="w-48 bg-black/30 border-r border-white/5 p-2 hidden sm:flex flex-col gap-1 text-xs">
-        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-2 mb-1.5">
-          Quick Access
-        </span>
-        <button className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 rounded-md text-left transition text-slate-200">
-          <HardDrive className="w-3.5 h-3.5 text-blue-400" />
-          <span>This PC</span>
-        </button>
-        <button className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 rounded-md text-left transition text-slate-200 bg-white/5">
-          <Folder className="w-3.5 h-3.5 text-amber-400" />
-          <span>Projects</span>
-        </button>
-        <button className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 rounded-md text-left transition text-slate-400 hover:text-slate-200">
-          <FileCode className="w-3.5 h-3.5" />
-          <span>Documents</span>
-        </button>
+  const handleOpenFolder = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setCurrentPath('project-detail');
+  };
 
-        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-2 mt-4 mb-1.5">
-          Network
-        </span>
-        <button className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 rounded-md text-left transition text-slate-400 hover:text-slate-200">
-          <GlobeIcon className="w-3.5 h-3.5" />
-          <span>GitHub Cloud</span>
-        </button>
+  const navigateTo = (path: NavigationPath) => {
+    setCurrentPath(path);
+    if (path !== 'project-detail') {
+      setSelectedProjectId(null);
+    }
+  };
+
+  return (
+    <div className={`flex h-full font-doodle select-none overflow-hidden ${
+      isDark ? 'bg-[#181716] text-slate-100' : 'bg-[#fdfbf7] text-[#2d2a26]'
+    }`}>
+      
+      {/* Left Sidebar Navigation (This PC / Quick Access Tree) */}
+      <div className={`w-52 sm:w-56 border-r-[2.5px] border-[#2d2a26] p-3 flex flex-col justify-between shrink-0 shadow-[4px_0px_0px_0px_#2d2a26] ${
+        isDark ? 'bg-[#262422] text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
+      }`}>
+        <div>
+          {/* Quick Access Section */}
+          <div className="mb-4">
+            <div className={`text-[10.5px] font-extrabold uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5 ${
+              isDark ? 'text-amber-300' : 'text-amber-900'
+            }`}>
+              <span>⭐</span> Quick Access
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => navigateTo('projects-d')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-[#2d2a26] text-xs font-bold transition cursor-pointer ${
+                  currentPath === 'projects-d' || currentPath === 'project-detail'
+                    ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]'
+                    : isDark ? 'bg-[#1e1c1a] text-slate-300 hover:bg-[#322f2c]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2]'
+                }`}
+              >
+                <Folder className="w-4 h-4 text-amber-500" />
+                <span className="truncate">Projects (D:)</span>
+              </button>
+
+              <button
+                onClick={() => openWindow('bio')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-[#2d2a26] text-xs font-bold transition cursor-pointer ${
+                  isDark ? 'bg-[#1e1c1a] text-slate-300 hover:bg-[#322f2c]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2]'
+                }`}
+              >
+                <FileText className="w-4 h-4 text-sky-500" />
+                <span className="truncate">Bio.txt</span>
+              </button>
+
+              <button
+                onClick={() => openWindow('terminal')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-[#2d2a26] text-xs font-bold transition cursor-pointer ${
+                  isDark ? 'bg-[#1e1c1a] text-slate-300 hover:bg-[#322f2c]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2]'
+                }`}
+              >
+                <Terminal className="w-4 h-4 text-emerald-500" />
+                <span className="truncate">Aura Terminal</span>
+              </button>
+            </div>
+          </div>
+
+          {/* This PC Directory Tree */}
+          <div>
+            <div className={`text-[10.5px] font-extrabold uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5 ${
+              isDark ? 'text-amber-300' : 'text-amber-900'
+            }`}>
+              <span>🖥️</span> This PC
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <button
+                onClick={() => navigateTo('this-pc')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-[#2d2a26] text-xs font-bold transition cursor-pointer ${
+                  currentPath === 'this-pc'
+                    ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]'
+                    : isDark ? 'bg-[#1e1c1a] text-slate-300 hover:bg-[#322f2c]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2]'
+                }`}
+              >
+                <Monitor className="w-4 h-4 text-purple-500" />
+                <span>This PC</span>
+              </button>
+
+              <button
+                onClick={() => navigateTo('drive-c')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-[#2d2a26] text-xs font-bold transition cursor-pointer ml-3 ${
+                  currentPath === 'drive-c'
+                    ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]'
+                    : isDark ? 'bg-[#1e1c1a] text-slate-300 hover:bg-[#322f2c]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2]'
+                }`}
+              >
+                <HardDrive className="w-4 h-4 text-sky-500" />
+                <span>Local Disk (C:)</span>
+              </button>
+
+              <button
+                onClick={() => navigateTo('projects-d')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-[#2d2a26] text-xs font-bold transition cursor-pointer ml-3 ${
+                  currentPath === 'projects-d' || currentPath === 'project-detail'
+                    ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]'
+                    : isDark ? 'bg-[#1e1c1a] text-slate-300 hover:bg-[#322f2c]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2]'
+                }`}
+              >
+                <Folder className="w-4 h-4 text-amber-500" />
+                <span>Projects (D:)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar Footer Info */}
+        <div className="pt-3 border-t-2 border-[#2d2a26] text-[10.5px] font-bold flex items-center justify-between">
+          <span>💾 Storage Status</span>
+          <span className="bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] px-1.5 py-0.5 rounded font-extrabold">Online</span>
+        </div>
       </div>
 
-      {/* Main Explorer Shell */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Navigation / Address Bar */}
-        <div className="flex items-center justify-between gap-3 p-2 bg-black/10 border-b border-white/5 text-xs">
-          <div className="flex items-center gap-2">
-            <button className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition">
-              <ArrowLeft className="w-3.5 h-3.5" />
+      {/* Main File Explorer Panel */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isDark ? 'bg-[#1e1c1a]' : 'bg-[#fdfbf7]'}`}>
+        
+        {/* Top Address Bar & Toolbar */}
+        <div className={`border-b-[2.5px] border-[#2d2a26] p-3 flex flex-wrap items-center justify-between gap-3 shadow-[0px_3px_0px_0px_#2d2a26] shrink-0 z-10 ${
+          isDark ? 'bg-[#262422] text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
+        }`}>
+          
+          {/* Navigation Controls & Path Input Bar */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+              onClick={() => {
+                if (currentPath === 'project-detail') navigateTo('projects-d');
+                else navigateTo('this-pc');
+              }}
+              className="p-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-[#2d2a26] border-2 border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] transition cursor-pointer shrink-0"
+              title="Back"
+            >
+              <ArrowLeft className="w-4 h-4" />
             </button>
-            <button className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition">
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <button className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition">
-              <RefreshCw className="w-3 h-3" />
-            </button>
+
+            {/* Address Bar Path */}
+            <div className="flex items-center gap-1.5 bg-[#fffdfa] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26] px-3 py-1 rounded-xl text-xs font-bold flex-1 truncate">
+              <span>🖥️</span>
+              <span>This PC</span>
+              <span>&gt;</span>
+              {currentPath === 'this-pc' && <span className="text-purple-900 font-extrabold">Root Directory</span>}
+              {currentPath === 'drive-c' && <span className="text-sky-900 font-extrabold">Local Disk (C:)</span>}
+              {(currentPath === 'projects-d' || currentPath === 'project-detail') && (
+                <span className="text-amber-900 font-extrabold">Projects (D:)</span>
+              )}
+              {currentPath === 'project-detail' && selectedProject && (
+                <>
+                  <span>&gt;</span>
+                  <span className="text-emerald-900 font-extrabold truncate">{selectedProject.title}</span>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Path bar */}
-          <div className="flex-1 max-w-xl flex items-center gap-1.5 px-3 py-1 bg-black/30 border border-white/5 rounded-md text-[11px] text-slate-300">
-            <span>This PC</span>
-            <ChevronRight className="w-3 h-3 text-slate-500" />
-            <span>Documents</span>
-            <ChevronRight className="w-3 h-3 text-slate-500" />
-            <span className="text-white font-medium">Projects</span>
-          </div>
+          {/* Search & View Mode Toggle */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="relative flex items-center">
+              <Search className="w-3.5 h-3.5 absolute left-3 text-zinc-500" />
+              <input
+                type="text"
+                placeholder="Search files..."
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                className="pl-8 pr-3 py-1 bg-[#fffdfa] text-[#2d2a26] border-[2px] border-[#2d2a26] rounded-xl text-xs placeholder-zinc-500 focus:outline-none shadow-[2px_2px_0px_0px_#2d2a26] w-36 sm:w-44 font-bold"
+              />
+            </div>
 
-          {/* Search Bar */}
-          <div className="relative flex items-center w-36 sm:w-48">
-            <Search className="absolute left-2.5 w-3 h-3 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search Projects"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-7.5 pr-2 py-1 rounded bg-black/35 border border-white/5 text-[11px] text-white focus:outline-none focus:border-win-accent-light"
-            />
-          </div>
-        </div>
-
-        {/* View Layout Selector Bar */}
-        <div className="flex items-center justify-between px-4 py-1.5 bg-black/5 border-b border-white/5 text-[11px] text-slate-400">
-          <div>{filteredProjects.length} items</div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 cursor-default hover:text-white transition">
-              <LayoutGrid className="w-3 h-3" /> Grid View
-            </span>
-          </div>
-        </div>
-
-        {/* Folder / File Contents */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Main items grid */}
-          <div className="flex-1 p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-4 auto-rows-max">
-            {filteredProjects.map((project) => (
-              <div
-                key={project.id}
-                onClick={() => setSelectedProject(project)}
-                className={`
-                  flex flex-col items-center p-3 rounded-lg border text-center transition cursor-default
-                  ${selectedProject?.id === project.id 
-                    ? 'bg-win-accent/20 border-win-accent-light' 
-                    : 'bg-black/20 border-white/5 hover:bg-white/5 hover:border-white/10'
-                  }
-                `}
+            <div className="flex items-center bg-[#f5efe2] border-[2px] border-[#2d2a26] rounded-xl p-0.5 shadow-[2px_2px_0px_0px_#2d2a26]">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1 rounded-lg transition cursor-pointer ${
+                  viewMode === 'grid' ? 'bg-[#fef08a] text-[#2d2a26] font-bold border border-[#2d2a26]' : 'text-zinc-700 hover:text-black'
+                }`}
+                title="Grid View"
               >
-                <Folder className="w-10 h-10 text-amber-400 mb-2 transform active:scale-95 transition-transform" />
-                <span className="text-xs font-medium text-slate-200 truncate w-full">
-                  {project.title}
-                </span>
-                <span className="text-[9px] text-slate-400 mt-1 truncate w-full">
-                  Folder
-                </span>
-              </div>
-            ))}
+                <Grid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-1 rounded-lg transition cursor-pointer ${
+                  viewMode === 'list' ? 'bg-[#fef08a] text-[#2d2a26] font-bold border border-[#2d2a26]' : 'text-zinc-700 hover:text-black'
+                }`}
+                title="List View"
+              >
+                <List className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
+        </div>
 
-          {/* Details Sidebar Panel */}
-          {selectedProject && (
-            <div className="w-full md:w-64 bg-black/35 border-t md:border-t-0 md:border-l border-white/5 p-4 flex flex-col justify-between overflow-y-auto text-xs">
+        {/* Directory Contents Panel */}
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto bg-doodle-grid">
+          
+          {/* VIEW 1: THIS PC (Drives View) */}
+          {currentPath === 'this-pc' && (
+            <div className="flex flex-col gap-6">
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Folder className="w-5 h-5 text-amber-400" />
-                  <h3 className="font-bold text-sm text-slate-100">{selectedProject.title}</h3>
-                </div>
-                <p className="text-slate-300 leading-relaxed mb-4">
-                  {selectedProject.description}
-                </p>
+                <h2 className={`text-sm font-extrabold uppercase tracking-wider mb-3 flex items-center gap-2 ${
+                  isDark ? 'text-amber-300' : 'text-amber-900'
+                }`}>
+                  <span>💾</span> Drives and Devices ({2})
+                </h2>
 
-                {/* Tech tags */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {selectedProject.tags.map((tag) => (
-                    <span 
-                      key={tag}
-                      className="px-2 py-0.5 rounded bg-white/5 border border-white/5 text-[9px] text-slate-400"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* Local Disk (C:) Card */}
+                  <div
+                    onClick={() => navigateTo('drive-c')}
+                    className={`group border-[2.5px] border-[#2d2a26] rounded-2xl p-4 shadow-[5px_5px_0px_0px_#2d2a26] hover:shadow-[7px_7px_0px_0px_#2d2a26] hover:-translate-y-1 transition duration-200 cursor-pointer flex items-center gap-4 ${
+                      isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                    }`}
+                  >
+                    <DoodleDriveIcon className="w-14 h-14" />
+                    <div className="flex-1">
+                      <h3 className="font-extrabold text-sm group-hover:text-amber-700 transition">
+                        Local Disk (C:)
+                      </h3>
+                      <div className="w-full bg-[#181716] border border-[#2d2a26] rounded-full h-2.5 mt-2 overflow-hidden">
+                        <div className="bg-sky-400 h-full w-[45%]" />
+                      </div>
+                      <p className={`text-[10.5px] font-bold mt-1 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+                        128 GB free of 256 GB
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Action buttons */}
-              <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/5">
-                {selectedProject.githubUrl && (
-                  <a
-                    href={selectedProject.githubUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-1.5 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-200 hover:text-white rounded-md text-center transition"
+                  {/* Projects (D:) Card */}
+                  <div
+                    onClick={() => navigateTo('projects-d')}
+                    className={`group border-[2.5px] border-[#2d2a26] rounded-2xl p-4 shadow-[5px_5px_0px_0px_#2d2a26] hover:shadow-[7px_7px_0px_0px_#2d2a26] hover:-translate-y-1 transition duration-200 cursor-pointer flex items-center gap-4 ${
+                      isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                    }`}
                   >
-                    <GitHubIcon className="w-3.5 h-3.5" />
-                    <span>View Repository</span>
-                  </a>
-                )}
-                {selectedProject.liveUrl && (
-                  <a
-                    href={selectedProject.liveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-1.5 bg-win-accent hover:bg-win-accent/80 text-white rounded-md text-center transition font-semibold"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Visit Live Site</span>
-                  </a>
-                )}
+                    <DoodleFolderIcon className="w-14 h-14" />
+                    <div className="flex-1">
+                      <h3 className="font-extrabold text-sm group-hover:text-amber-700 transition">
+                        Projects (D:)
+                      </h3>
+                      <div className="w-full bg-[#181716] border border-[#2d2a26] rounded-full h-2.5 mt-2 overflow-hidden">
+                        <div className="bg-[#fef08a] h-full w-[65%]" />
+                      </div>
+                      <p className={`text-[10.5px] font-bold mt-1 ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>
+                        {projects.length} Proyek Portofolio Terdaftar
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+          )}
+
+          {/* VIEW 2: LOCAL DISK (C:) View */}
+          {currentPath === 'drive-c' && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between border-b-2 border-[#2d2a26] pb-3 mb-2">
+                <h2 className="text-base font-extrabold flex items-center gap-2">
+                  <span>💾</span> Local Disk (C:) System Folders
+                </h2>
+                <button
+                  onClick={() => navigateTo('this-pc')}
+                  className="bg-amber-200 border-2 border-[#2d2a26] px-3 py-1 rounded-xl text-xs font-bold text-[#2d2a26]"
+                >
+                  Kembali ke This PC ➔
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div 
+                  onClick={() => openWindow('bio')}
+                  className={`border-[2px] border-[#2d2a26] rounded-xl p-3 flex flex-col items-center justify-center text-center gap-2 cursor-pointer shadow-[3px_3px_0px_0px_#2d2a26] ${
+                    isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                  }`}
+                >
+                  <FileText className="w-10 h-10 text-sky-500" />
+                  <span className="text-xs font-bold">Documents / Bio.txt</span>
+                </div>
+
+                <div 
+                  onClick={() => openWindow('terminal')}
+                  className={`border-[2px] border-[#2d2a26] rounded-xl p-3 flex flex-col items-center justify-center text-center gap-2 cursor-pointer shadow-[3px_3px_0px_0px_#2d2a26] ${
+                    isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                  }`}
+                >
+                  <Terminal className="w-10 h-10 text-emerald-500" />
+                  <span className="text-xs font-bold">System / Terminal</span>
+                </div>
+
+                <div 
+                  onClick={() => navigateTo('projects-d')}
+                  className={`border-[2px] border-[#2d2a26] rounded-xl p-3 flex flex-col items-center justify-center text-center gap-2 cursor-pointer shadow-[3px_3px_0px_0px_#2d2a26] ${
+                    isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                  }`}
+                >
+                  <DoodleFolderIcon className="w-10 h-10" />
+                  <span className="text-xs font-bold">Projects Directory</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 3: PROJECTS (D:) Directory View */}
+          {currentPath === 'projects-d' && (
+            <div>
+              <div className="flex items-center justify-between mb-5 px-1">
+                <div>
+                  <h2 className="text-base sm:text-lg font-extrabold flex items-center gap-2">
+                    <span>📂</span> Projects (D:) Directory ({filteredProjects.length})
+                  </h2>
+                  <p className={`text-xs font-bold mt-0.5 ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>
+                    Klik pada ikon folder proyek di bawah untuk membuka detail & tautan langsung.
+                  </p>
+                </div>
+              </div>
+
+              {/* Grid View */}
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {filteredProjects.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => handleOpenFolder(p.id)}
+                      className={`group flex flex-col items-center justify-between p-4 border-[2.5px] border-[#2d2a26] rounded-2xl shadow-[5px_5px_0px_0px_#2d2a26] hover:shadow-[7px_7px_0px_0px_#2d2a26] hover:-translate-y-1 transition-all duration-200 cursor-pointer font-doodle text-center min-h-[170px] relative ${
+                        isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                      }`}
+                    >
+                      {p.featured && (
+                        <span className="absolute top-2 right-2 bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] text-[9px] font-extrabold px-1.5 py-0.5 rounded-full shadow-[1px_1px_0px_0px_#2d2a26]">
+                          ⭐ Featured
+                        </span>
+                      )}
+
+                      <div className="mt-2 group-hover:scale-110 transition-transform">
+                        <DoodleFolderIcon className="w-16 h-16" />
+                      </div>
+
+                      <div className="w-full mt-2">
+                        <h3 className="font-extrabold text-xs sm:text-sm truncate px-1">
+                          {p.title}
+                        </h3>
+                        <div className={`text-[10px] font-bold mt-0.5 ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>
+                          {p.tags.length} File / Tech Stack
+                        </div>
+                      </div>
+
+                      <div className="mt-2 w-full pt-2 border-t-2 border-[#2d2a26]/60 flex items-center justify-center">
+                        <span className="text-[10.5px] bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] px-2.5 py-0.5 rounded-lg font-extrabold shadow-[1.5px_1.5px_0px_0px_#2d2a26]">
+                          Buka Folder ➔
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* List View */
+                <div className="flex flex-col gap-3">
+                  {filteredProjects.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => handleOpenFolder(p.id)}
+                      className={`border-[2.5px] border-[#2d2a26] rounded-2xl p-3.5 shadow-[4px_4px_0px_0px_#2d2a26] hover:shadow-[6px_6px_0px_0px_#2d2a26] transition-all cursor-pointer flex items-center justify-between gap-4 font-doodle ${
+                        isDark ? 'bg-[#262422] hover:bg-[#322f2c] text-slate-100' : 'bg-[#fcf9f2] hover:bg-[#f5efe2] text-[#2d2a26]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5 overflow-hidden">
+                        <DoodleFolderIcon className="w-10 h-10" />
+                        <div>
+                          <h3 className="font-extrabold text-sm leading-tight flex items-center gap-2">
+                            <span>{p.title}</span>
+                            {p.featured && (
+                              <span className="bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] text-[9px] font-extrabold px-1.5 py-0.5 rounded-full">
+                                ⭐ Featured
+                              </span>
+                            )}
+                          </h3>
+                          <p className={`text-xs truncate max-w-lg mt-0.5 font-bold ${isDark ? 'text-slate-300' : 'text-zinc-700'}`}>
+                            {p.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button className="bg-[#fef08a] text-[#2d2a26] border-2 border-[#2d2a26] px-3.5 py-1 rounded-xl text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26] shrink-0">
+                        Buka Folder ➔
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 4: INSIDE SPECIFIC PROJECT FOLDER */}
+          {currentPath === 'project-detail' && selectedProject && (
+            <ProjectDetailView
+              isDark={isDark}
+              selectedProject={selectedProject}
+              onBack={() => navigateTo('projects-d')}
+              DoodleFolderIcon={DoodleFolderIcon}
+            />
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-// Small helper inline component
-function GlobeIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-      <path d="M2 12h20" />
-    </svg>
   );
 }
