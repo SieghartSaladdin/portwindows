@@ -57,6 +57,13 @@ export async function PUT(request: Request) {
     return NextResponse.json(profile);
   } catch (error: any) {
     console.error('API Profile PUT Error:', error);
+    const msg = String(error?.message || '');
+    if (msg.includes('does not exist') || msg.includes('relation') || msg.includes('table')) {
+      return NextResponse.json({ error: 'Tabel database PostgreSQL belum dibuat. Silakan jalankan npx prisma db push.' }, { status: 500 });
+    }
+    if (msg.includes('connect') || msg.includes('ECONNREFUSED') || msg.includes('reach database')) {
+      return NextResponse.json({ error: 'Koneksi ke PostgreSQL gagal. Pastikan PostgreSQL server berjalan dan DATABASE_URL sudah dikonfigurasi.' }, { status: 500 });
+    }
     return NextResponse.json({ error: error?.message || 'Gagal memperbarui profil di database.' }, { status: 500 });
   }
 }
