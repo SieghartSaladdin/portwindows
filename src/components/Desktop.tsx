@@ -59,11 +59,18 @@ const BackgroundDoodles = () => (
 );
 
 export function Desktop() {
-  const { wallpaper, themeMode, closeStartMenu, setIsChatInputOpen, fetchDatabaseData } = useOSStore();
+  const { profile, wallpaper, themeMode, closeStartMenu, setIsChatInputOpen, fetchDatabaseData } = useOSStore();
 
   React.useEffect(() => {
     fetchDatabaseData();
   }, [fetchDatabaseData]);
+
+  // Dynamically update document title from database profile state
+  React.useEffect(() => {
+    if (profile?.name) {
+      document.title = `${profile.name} | ${profile.title || 'Interactive Portfolio'} - Aura OS`;
+    }
+  }, [profile]);
 
   const { isOpen, position, handleContextMenu, closeMenu } = useContextMenu();
 
