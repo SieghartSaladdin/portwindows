@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Background Doodle Card -->
+  <rect x="5" y="5" width="54" height="54" rx="14" fill="#fcf9f2" stroke="#2d2a26" stroke-width="4" />
+  
+  <!-- 4 Doodle Window Panes -->
+  <!-- Top Left Pane (Yellow) -->
+  <rect x="14" y="14" width="15" height="15" rx="4" fill="#fef08a" stroke="#2d2a26" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Top Right Pane (Sky Blue) -->
+  <rect x="35" y="14" width="15" height="15" rx="4" fill="#7dd3fc" stroke="#2d2a26" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Bottom Left Pane (Mint Green) -->
+  <rect x="14" y="35" width="15" height="15" rx="4" fill="#86efac" stroke="#2d2a26" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Bottom Right Pane (Coral Red) -->
+  <rect x="35" y="35" width="15" height="15" rx="4" fill="#fca5a5" stroke="#2d2a26" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Doodle Sparkle Accents -->
+  <path d="M 48 10 L 50 12 L 48 14 L 46 12 Z" fill="#fef08a" stroke="#2d2a26" stroke-width="1.5" />
+</svg>
