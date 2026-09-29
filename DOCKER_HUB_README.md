@@ -1,106 +1,45 @@
-# Windows 11 Pro Interactive Portfolio & MCP Server 🖥️
+# Aura OS: doodle desktop portfolio
 
-A high-fidelity replica of the Windows 11 Pro desktop environment, built as an interactive developer portfolio website. This project combines desktop-grade windowing capabilities, modular app panels, a functional CLI terminal, and an integrated **Model Context Protocol (MCP) server** to expose your portfolio database (projects, skills, experience, and bio) directly to local or cloud-based AI assistants (like Claude, Cursor, Windsurf, or Hermes).
+A developer portfolio that looks like a small hand-drawn desktop OS: draggable app windows, an AI companion that answers questions from the portfolio database, a contact form, a password-protected Developer Hub for editing content, and a built-in MCP endpoint for AI assistants.
 
----
+## Quick start (docker compose)
 
-## 🚀 Quick Start (Running the Docker Container)
+The image needs PostgreSQL. Use the `docker-compose.yml` from the repository and create a `.env` file next to it:
 
-The Docker image contains both the interactive portfolio website and the built-in MCP server.
-
-### 1. Run with Persistent Database (Recommended)
-To ensure changes made to your profile/projects persist on your host machine, mount the `prisma` directory as a volume:
+```env
+POSTGRES_PASSWORD=<random>
+ADMIN_USERNAME=<your login>
+ADMIN_PASSWORD=<strong password>
+JWT_SECRET=<openssl rand -hex 32>
+MCP_API_KEY=<openssl rand -hex 32>
+# AI companion (any OpenAI-compatible endpoint)
+LLM_API_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_KEY=<key>
+LLM_MODEL=<model id>
+NEXT_PUBLIC_SITE_URL=https://your.domain
+```
 
 ```bash
-docker run -d -p 3000:3000 \
-  --name portwindows \
-  -v $(pwd)/prisma:/app/prisma \
-  rfieq/portwindows:latest
+docker compose up -d
 ```
 
-Once running:
-*   **Interactive Portfolio**: Open **[http://localhost:3000](http://localhost:3000)** in your browser.
-*   **MCP Server Endpoint (SSE)**: `http://localhost:3000/api/mcp`
+Compose refuses to start while a required secret is missing; there are no built-in default passwords. On start the container runs `prisma migrate deploy` and then serves the app on port 3000.
 
----
+- Portfolio: http://localhost:3000
+- MCP endpoint: `http://localhost:3000/api/mcp` (header `Authorization: Bearer <MCP_API_KEY>`)
 
-## 🖥️ AI Client Configuration (MCP)
+## Data
 
-Since the container runs the SSE endpoint, you can connect your AI assistants directly using the Server-Sent Events (SSE) URL.
+- Database: `postgres_data` volume.
+- Uploaded images and CV files: `uploads_data` volume mounted at `/app/uploads` (`UPLOAD_DIR`).
 
-### 1. Remote Client (`mcp-remote`)
-Add the following to your AI client configuration (e.g. Cursor, Claude Desktop, or Hermes):
+Upgrading from an older image whose database was created with `prisma db push`: run once
+`docker compose run --rm portwindows node ./node_modules/prisma/build/index.js migrate resolve --applied 0_init`.
 
-```json
-{
-  "mcpServers": {
-    "portwindows-admin-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://<SERVER_IP>:3002/sse",
-        "--allow-http"
-      ]
-    }
-  }
-}
-```
+## Environment
 
-### 2. In Hermes Agent
-Add the following to your `~/.hermes/config.yaml` file:
-```yaml
-mcp_servers:
-  portwindows-mcp:
-    url: "http://localhost:3000/api/mcp"
-    transport: sse
-```
-*(If you host this container in the cloud, replace `localhost:3000` with your live domain name).*
+- Required: `DATABASE_URL` (compose builds it from `POSTGRES_*`), `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, `MCP_API_KEY` (16+ characters).
+- AI chat: `LLM_API_KEY` (or `OPENROUTER_API_KEY`), `LLM_PROVIDER`, `LLM_API_BASE_URL`, `LLM_MODEL`. Without a key the chat answers 503.
+- Optional: `NEXT_PUBLIC_SITE_URL` (inlined at build time; pass it as a build arg when building the image), `UPLOAD_DIR`.
 
-### 2. In Cursor (IDE)
-1. Go to **Settings** (Gear icon) -> **Features** -> **MCP**.
-2. Click **+ Add New MCP Server**.
-3. Set:
-   * **Name**: `portwindows-mcp`
-   * **Type**: `SSE`
-   * **URL**: `http://localhost:3000/api/mcp`
-4. Click **Save**.
-
-### 3. In Windsurf (IDE)
-1. Go to **Settings** -> **Advanced** -> **MCP**.
-2. Add a new MCP server:
-   * **Name**: `portwindows-mcp`
-   * **Type**: `sse`
-   * **Endpoint**: `http://localhost:3000/api/mcp`
-
-### 4. In Claude Desktop
-If you prefer standard stdio for local use, you can configure Claude Desktop using the command line:
-```json
-{
-  "mcpServers": {
-    "portwindows-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "tsx",
-        "/path/to/your/project/src/mcp/index.ts"
-      ],
-      "cwd": "/path/to/your/project"
-    }
-  }
-}
-```
-
----
-
-## ⚙️ Environment Configuration
-
-You can customize the container execution behavior using the following environment variables:
-
-| Variable | Description | Example / Values |
-| :--- | :--- | :--- |
-| `PORT` | Container internal port mapping (defaults to 3000) | `3000` |
-| `LLM_PROVIDER` | AI provider for the portfolio's built-in chat functions | `openrouter`, `ollama` |
-| `OPENROUTER_API_KEY` | Your OpenRouter API token (required if using OpenRouter) | `sk-or-v1-...` |
-| `OLLAMA_BASE_URL` | Local API URL for Ollama | `http://host.docker.internal:11434` |
-| `OLLAMA_MODEL` | Ollama model tag to prompt | `gemma2` |
+See `README_MCP.md` in the repository for MCP client configuration and the tool list.

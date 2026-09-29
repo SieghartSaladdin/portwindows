@@ -1,119 +1,119 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { ExternalLink } from 'lucide-react';
-import { useOSStore } from '@/lib/store';
-import { DesktopIcon } from '@/lib/data';
-import { 
-  DoodleBioIcon, 
-  DoodleFolderIcon, 
-  DoodleTerminalIcon, 
-  DoodleSettingsIcon, 
-  DoodlePetIcon, 
+import { useOSStore, type DesktopIconSize } from '@/lib/store';
+import type { DesktopIcon } from '@/lib/data';
+import { profileLinkUrl, openExternal } from '@/hooks/useProfileLinks';
+import { cx } from '@/components/ui/primitives';
+import {
+  DoodleBioIcon,
+  DoodleFolderIcon,
+  DoodleTerminalIcon,
+  DoodleSettingsIcon,
+  DoodlePetIcon,
   DoodleLinkIcon,
-  DoodleAdminIcon
+  DoodleAdminIcon,
 } from '@/components/ui/DoodleIcons';
 
 interface AppIconProps {
   icon: DesktopIcon;
+  size?: DesktopIconSize;
 }
 
-export function AppIcon({ icon }: AppIconProps) {
-  const { openWindow, profile, themeMode } = useOSStore();
-  const [isSelected, setIsSelected] = useState(false);
+const SIZE_STYLES: Record<DesktopIconSize, { box: string; glyph: string; label: string }> = {
+  small: { box: 'w-20 min-h-[76px] gap-1', glyph: 'w-8 h-8', label: 'text-2xs' },
+  medium: { box: 'w-24 min-h-[92px] gap-1.5', glyph: 'w-11 h-11', label: 'text-xs' },
+  large: { box: 'w-28 min-h-[112px] gap-2', glyph: 'w-14 h-14', label: 'text-sm' },
+};
 
-  const getIcon = () => {
-    const className = "w-11 h-11 transition-transform group-hover:scale-110 select-none filter drop-shadow-[2px_3px_0px_rgba(0,0,0,0.5)]";
-    switch (icon.iconType) {
-      case 'notepad':
-        return <DoodleBioIcon className={className} />;
-      case 'folder':
-        return <DoodleFolderIcon className={className} />;
-      case 'terminal':
-        return <DoodleTerminalIcon className={className} />;
-      case 'settings':
-        return <DoodleSettingsIcon className={className} />;
-      case 'game':
-        return <DoodlePetIcon className={className} />;
-      case 'browser':
-      default:
-        if (icon.id === 'admin') return <DoodleAdminIcon className={className} />;
-        return <DoodleLinkIcon className={className} />;
-    }
-  };
+function renderGlyph(icon: DesktopIcon, className: string) {
+  switch (icon.iconType) {
+    case 'notepad':
+      return <DoodleBioIcon className={className} />;
+    case 'folder':
+      return <DoodleFolderIcon className={className} />;
+    case 'terminal':
+      return <DoodleTerminalIcon className={className} />;
+    case 'settings':
+      return <DoodleSettingsIcon className={className} />;
+    case 'game':
+      return <DoodlePetIcon className={className} />;
+    case 'browser':
+    default:
+      if (icon.id === 'admin') return <DoodleAdminIcon className={className} />;
+      return <DoodleLinkIcon className={className} />;
+  }
+}
+
+/**
+ * Desktop shortcut. Mouse: click selects, double-click opens. Touch: a single tap opens.
+ * Keyboard: Enter / Space opens (arrow-key navigation is handled by the Desktop grid).
+ */
+export function AppIcon({ icon, size = 'medium' }: AppIconProps) {
+  const openWindow = useOSStore((s) => s.openWindow);
+  const profile = useOSStore((s) => s.profile);
+  const styles = SIZE_STYLES[size];
+  const isLink = icon.action === 'openLink';
 
   const handleAction = () => {
     if (icon.action === 'openApp' && icon.appId) {
       openWindow(icon.appId, icon.title);
-    } else if (icon.action === 'openLink') {
-      let targetUrl = icon.url;
-      if (icon.id === 'github' && profile?.githubUrl) {
-        targetUrl = profile.githubUrl;
-      } else if (icon.id === 'linkedin' && profile?.linkedinUrl) {
-        targetUrl = profile.linkedinUrl;
-      }
-      if (targetUrl) {
-        window.open(targetUrl, '_blank');
-      }
+    } else if (isLink && icon.profileLink) {
+      const url = profileLinkUrl(profile, icon.profileLink);
+      if (url) openExternal(url);
     }
-  };
-
-  const lastClickTimeRef = useRef(0);
-  const handlePointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
-    setIsSelected(true);
-    
-    const clearSelection = () => {
-      setIsSelected(false);
-      document.removeEventListener('pointerdown', clearSelection);
-    };
-    setTimeout(() => {
-      document.addEventListener('pointerdown', clearSelection);
-    }, 10);
-    
-    const currentTime = new Date().getTime();
-    const isDoubleClick = (currentTime - lastClickTimeRef.current) < 300;
-    
-    if (isDoubleClick) {
-      handleAction();
-      setIsSelected(false);
-    }
-    
-    lastClickTimeRef.current = currentTime;
   };
 
   return (
-    <div
-      onPointerDown={handlePointerDown}
-      className={`
-        flex flex-col items-center justify-center w-23 min-h-[92px] p-2 rounded-2xl cursor-pointer select-none group font-doodle
-        transition-all duration-150 relative border-2
-        ${isSelected 
-          ? 'bg-[#fffdfa]/95 text-[#2d2a26] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] scale-105' 
-          : 'bg-transparent border-transparent text-white hover:bg-[#fffdfa]/20 hover:backdrop-blur-xs hover:border-dashed hover:border-amber-200/60 hover:scale-105'
-        }
-      `}
+    <button
+      type="button"
+      data-desktop-icon
+      aria-label={isLink ? `${icon.title} (opens in a new tab)` : `Open ${icon.title}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => {
+        // Touch devices have no double-click: a single tap opens.
+        if (e.pointerType === 'touch') handleAction();
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        // detail === 0 means keyboard activation (Enter / Space)
+        if (e.detail === 0) handleAction();
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        handleAction();
+      }}
+      className={cx(
+        'group relative flex flex-col items-center justify-start p-2 rounded-2xl border-2 border-transparent font-doodle cursor-pointer select-none',
+        'transition-all duration-150 outline-none',
+        'hover:border-dashed hover:border-line hover:bg-surface/40',
+        'focus:bg-surface/90 focus:border-solid focus:border-line focus:shadow-doodle-md',
+        'focus-visible:outline-[2.5px] focus-visible:outline-dashed focus-visible:outline-line focus-visible:outline-offset-2',
+        styles.box,
+      )}
     >
-      <div className="relative flex items-center justify-center">
-        {getIcon()}
-        {icon.action === 'openLink' && (
-          <ExternalLink className="absolute -bottom-1 -right-1 w-4 h-4 text-[#2d2a26] bg-amber-200 rounded-full p-[1px] border border-[#2d2a26] shadow-sm" />
+      <span className="relative flex items-center justify-center">
+        {renderGlyph(icon, cx(styles.glyph, 'transition-transform group-hover:scale-110 select-none'))}
+        {isLink && (
+          <ExternalLink
+            aria-hidden
+            className="absolute -bottom-1 -right-1 w-4 h-4 text-ink bg-highlight rounded-full p-[1px] border border-ink"
+          />
         )}
-      </div>
-      
-      <span 
-        className={`
-          text-[12px] leading-tight text-center font-doodle font-extrabold tracking-tight max-w-full px-2 py-0.5 mt-1.5 rounded-lg truncate transition-all
-          ${isSelected 
-            ? 'text-[#2d2a26] bg-[#fef08a] border-2 border-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
-            : themeMode === 'dark'
-              ? 'text-[#fcf9f2] bg-[#262422]/90 border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] group-hover:bg-[#fef08a] group-hover:text-[#2d2a26]'
-              : 'text-[#2d2a26] bg-[#fcf9f2]/95 border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] group-hover:bg-[#fef08a]'
-          }
-        `}
+      </span>
+
+      <span
+        className={cx(
+          'leading-tight text-center font-bold tracking-tight max-w-full px-2 py-0.5 rounded-lg truncate transition-all',
+          'text-fg bg-surface-2 border-2 border-line shadow-doodle-sm',
+          'group-hover:bg-highlight group-hover:text-ink group-hover:border-ink',
+          'group-focus:bg-highlight group-focus:text-ink group-focus:border-ink',
+          styles.label,
+        )}
       >
         {icon.title}
       </span>
-    </div>
+    </button>
   );
 }

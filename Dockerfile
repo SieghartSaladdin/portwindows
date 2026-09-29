@@ -19,6 +19,10 @@ COPY . .
 # Disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Public site URL used for metadata, robots.txt and sitemap.xml (inlined at build time).
+ARG NEXT_PUBLIC_SITE_URL=
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+
 RUN npx prisma generate
 RUN npm run build
 
@@ -38,6 +42,10 @@ COPY --from=builder /app/public ./public
 # Set the correct permission for prerender cache
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
+
+# Uploaded images / CV files (mount a volume here; see docker-compose.yml)
+RUN mkdir -p /app/uploads && chown nextjs:nodejs /app/uploads
+ENV UPLOAD_DIR=/app/uploads
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

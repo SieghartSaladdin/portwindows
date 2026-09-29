@@ -1,396 +1,452 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Power, 
-  User, 
-  ChevronLeft,
-  Sparkles
-} from 'lucide-react';
+import { Power, Lock, ChevronLeft, ChevronRight, Sparkles, Wrench, Palette, Volume2, Link2 } from 'lucide-react';
 
 import { useOSStore } from '@/lib/store';
-import { PROFILE } from '@/lib/data';
-import { 
-  DoodleHomeIcon,
-  DoodleSearchIcon,
-  DoodleBioIcon,
-  DoodleFolderIcon,
-  DoodleTerminalIcon,
-  DoodleSettingsIcon,
-  DoodlePetIcon,
-  DoodleAdminIcon,
-  DoodleLinkIcon,
-  DoodleWidgetsIcon
-} from '@/components/ui/DoodleIcons';
+import { OS_VERSION } from '@/lib/data';
+import { APP_BY_ID, LAUNCHER_APPS } from '@/hooks/appRegistry';
+import { useDismiss } from '@/hooks/useDismiss';
+import { getProfileLinks, isPlaceholderProfile, openExternal } from '@/hooks/useProfileLinks';
+import { Badge, EmptyState, IconButton, cx } from '@/components/ui/primitives';
+import { DoodleSearchIcon, DoodleFolderIcon, DoodleLinkIcon } from '@/components/ui/DoodleIcons';
+
+type ResultGroup = 'Apps' | 'Projects' | 'Skills' | 'Settings' | 'Links';
+
+interface SearchResult {
+  key: string;
+  group: ResultGroup;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  action: () => void;
+}
+
+const GROUP_ORDER: ResultGroup[] = ['Apps', 'Projects', 'Skills', 'Settings', 'Links'];
+const MAX_PER_GROUP = 6;
+
+const tileClass =
+  'border-2 border-line bg-surface hover:bg-surface-3 rounded-2xl shadow-doodle-sm transition cursor-pointer font-doodle text-fg ' +
+  'hover:-translate-y-0.5 active:translate-y-0 focus-visible:shadow-doodle';
 
 export function StartMenu() {
-  const { 
-    startMenuOpen, 
-    toggleStartMenu, 
-    openWindow,
-    recentlyOpened,
-    startMenuSearchFocused,
-    setStartMenuSearchFocused,
-    profile,
-    showConfirm
-  } = useOSStore();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
+  const startMenuOpen = useOSStore((s) => s.startMenuOpen);
+  const closeStartMenu = useOSStore((s) => s.closeStartMenu);
+
+  return <AnimatePresence>{startMenuOpen && <StartMenuPanel onClose={closeStartMenu} />}</AnimatePresence>;
+}
+
+function StartMenuPanel({ onClose }: { onClose: () => void }) {
+  const openWindow = useOSStore((s) => s.openWindow);
+  const recentlyOpened = useOSStore((s) => s.recentlyOpened);
+  const startMenuSearchFocused = useOSStore((s) => s.startMenuSearchFocused);
+  const setStartMenuSearchFocused = useOSStore((s) => s.setStartMenuSearchFocused);
+  const profile = useOSStore((s) => s.profile);
+  const projects = useOSStore((s) => s.projects);
+  const skills = useOSStore((s) => s.skills);
+  const dataStatus = useOSStore((s) => s.dataStatus);
+  const showConfirm = useOSStore((s) => s.showConfirm);
+  const lockScreen = useOSStore((s) => s.lockScreen);
+  const setSelectedProjectId = useOSStore((s) => s.setSelectedProjectId);
+
+  const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<'pinned' | 'allApps'>('pinned');
 
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
-  // Reset selected search index when search query changes
-  useEffect(() => {
-    setSelectedSearchIndex(0);
-  }, [searchQuery]);
+  useDismiss(menuRef, true, onClose, '[data-trigger="start"]');
 
-  // Focus the input when startMenuSearchFocused is triggered
+  // Focus the search box on open (and again when the taskbar search button is used)
   useEffect(() => {
-    if (startMenuOpen && startMenuSearchFocused && inputRef.current) {
-      inputRef.current.focus();
+    const t = setTimeout(() => inputRef.current?.focus(), 60);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (startMenuSearchFocused) {
+      inputRef.current?.focus();
       setStartMenuSearchFocused(false);
     }
-  }, [startMenuOpen, startMenuSearchFocused, setStartMenuSearchFocused]);
+  }, [startMenuSearchFocused, setStartMenuSearchFocused]);
 
-  // General autoFocus helper on Start Menu open
-  useEffect(() => {
-    if (startMenuOpen && inputRef.current) {
-      const t = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 85);
-      return () => clearTimeout(t);
-    }
-  }, [startMenuOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (startMenuOpen && menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        const target = event.target as HTMLElement;
-        if (!target.closest('.win-start-btn') && !target.closest('.win-search-btn')) {
-          toggleStartMenu();
-        }
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [startMenuOpen, toggleStartMenu]);
-
-  if (!startMenuOpen) return null;
-
-  const handleOpenApp = (id: string, title: string) => {
-    openWindow(id, title);
-    toggleStartMenu();
-  };
-
-  const pinnedApps = [
-    { id: 'bio', title: 'Bio.txt', icon: <DoodleBioIcon className="w-7 h-7" />, action: () => handleOpenApp('bio', 'Bio.txt') },
-    { id: 'projects', title: 'Projects', icon: <DoodleFolderIcon className="w-7 h-7" />, action: () => handleOpenApp('projects', 'Projects') },
-    { id: 'terminal', title: 'Aura Terminal', icon: <DoodleTerminalIcon className="w-7 h-7" />, action: () => handleOpenApp('terminal', 'Aura Terminal') },
-    { id: 'settings', title: 'Settings', icon: <DoodleSettingsIcon className="w-7 h-7" />, action: () => handleOpenApp('settings', 'Settings') },
-    { id: 'admin', title: 'Developer Hub', icon: <DoodleAdminIcon className="w-7 h-7" />, action: () => handleOpenApp('admin', 'Developer Hub') },
-    { id: 'frieren', title: 'Frieren.exe', icon: <DoodlePetIcon className="w-7 h-7" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
-  ];
-
-  const allAppsList = [
-    { id: 'terminal', title: 'Aura Terminal', icon: <DoodleTerminalIcon className="w-5 h-5" />, action: () => handleOpenApp('terminal', 'Aura Terminal'), letter: 'A' },
-    { id: 'bio', title: 'Bio.txt', icon: <DoodleBioIcon className="w-5 h-5" />, action: () => handleOpenApp('bio', 'Bio.txt'), letter: 'B' },
-    { id: 'admin', title: 'Developer Hub', icon: <DoodleAdminIcon className="w-5 h-5" />, action: () => handleOpenApp('admin', 'Developer Hub'), letter: 'D' },
-    { id: 'frieren', title: 'Frieren.exe', icon: <DoodlePetIcon className="w-5 h-5" />, action: () => handleOpenApp('frieren', 'Frieren.exe'), letter: 'F' },
-    { id: 'github', title: 'GitHub', icon: <DoodleLinkIcon className="w-5 h-5" />, action: () => { window.open(profile?.githubUrl || 'https://github.com', '_blank'); toggleStartMenu(); }, letter: 'G' },
-    { id: 'linkedin', title: 'LinkedIn', icon: <DoodleLinkIcon className="w-5 h-5" />, action: () => { window.open(profile?.linkedinUrl || 'https://linkedin.com', '_blank'); toggleStartMenu(); }, letter: 'L' },
-    { id: 'projects', title: 'Projects', icon: <DoodleFolderIcon className="w-5 h-5" />, action: () => handleOpenApp('projects', 'Projects'), letter: 'P' },
-    { id: 'settings', title: 'Settings', icon: <DoodleSettingsIcon className="w-5 h-5" />, action: () => handleOpenApp('settings', 'Settings'), letter: 'S' },
-  ];
-
-  const appMap: Record<string, { title: string; desc: string; icon: React.ReactNode; action: () => void }> = {
-    bio: { title: 'Bio.txt', desc: 'Notepad Document', icon: <DoodleBioIcon className="w-5 h-5" />, action: () => handleOpenApp('bio', 'Bio.txt') },
-    projects: { title: 'Projects', desc: 'System Folder', icon: <DoodleFolderIcon className="w-5 h-5" />, action: () => handleOpenApp('projects', 'Projects') },
-    terminal: { title: 'Aura Terminal', desc: 'System Command Terminal', icon: <DoodleTerminalIcon className="w-5 h-5" />, action: () => handleOpenApp('terminal', 'Aura Terminal') },
-    settings: { title: 'Settings', desc: 'System Settings App', icon: <DoodleSettingsIcon className="w-5 h-5" />, action: () => handleOpenApp('settings', 'Settings') },
-    frieren: { title: 'Frieren.exe', desc: 'Character Control App', icon: <DoodlePetIcon className="w-5 h-5" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
-    admin: { title: 'Developer Hub', desc: 'System Administrator Control', icon: <DoodleAdminIcon className="w-5 h-5" />, action: () => handleOpenApp('admin', 'Developer Hub') },
-  };
-
-  const recentItems = recentlyOpened
-    .map((id) => appMap[id])
-    .filter(Boolean)
-    .slice(0, 4);
-
-  const allSearchableItems = [
-    { id: 'admin', title: 'Developer Hub', desc: 'CRUD developer dashboard with PIN lock to edit profile details, projects, skills, and work experiences.', category: 'Apps', icon: <DoodleAdminIcon className="w-5 h-5" />, action: () => handleOpenApp('admin', 'Developer Hub') },
-    { id: 'bio', title: 'Bio.txt', desc: 'Read personal bio, background, and developer profile information.', category: 'Apps', icon: <DoodleBioIcon className="w-5 h-5" />, action: () => handleOpenApp('bio', 'Bio.txt') },
-    { id: 'projects', title: 'Projects Folder', desc: 'Browse developer projects, repositories, and technical skills.', category: 'Apps', icon: <DoodleFolderIcon className="w-5 h-5" />, action: () => handleOpenApp('projects', 'Projects') },
-    { id: 'terminal', title: 'Aura Terminal', desc: 'Run OS terminal commands, file utilities, and system commands.', category: 'Apps', icon: <DoodleTerminalIcon className="w-5 h-5" />, action: () => handleOpenApp('terminal', 'Aura Terminal') },
-    { id: 'settings', title: 'Settings Manager', desc: 'Customize simulated desktop wallpapers, themes, and audio features.', category: 'Apps', icon: <DoodleSettingsIcon className="w-5 h-5" />, action: () => handleOpenApp('settings', 'Settings') },
-    { id: 'frieren', title: 'Frieren.exe Control Panel', desc: 'Configure playable character sizes, walking speeds, speech volume, and memory limits.', category: 'Apps', icon: <DoodlePetIcon className="w-5 h-5" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
-    
-    { id: 'settings-wp', title: 'Change Desktop Wallpaper', desc: 'Configure Settings manager to switch desktop background gradients.', category: 'Settings', icon: <DoodleSettingsIcon className="w-5 h-5" />, action: () => handleOpenApp('settings', 'Settings') },
-    { id: 'settings-volume', title: 'Adjust Character Scroll Volume', desc: 'Modify typing blip sound volume and toggle sound limits.', category: 'Settings', icon: <DoodleSettingsIcon className="w-5 h-5" />, action: () => handleOpenApp('settings', 'Settings') },
-    { id: 'frieren-spawn', title: 'Toggle Character Spawn Status', desc: 'Enable or disable desktop pet animations in Frieren.exe.', category: 'Settings', icon: <DoodlePetIcon className="w-5 h-5" />, action: () => handleOpenApp('frieren', 'Frieren.exe') },
-
-    { id: 'github', title: 'GitHub Profile Link', desc: 'Launch browser to view software development repositories on github.com.', category: 'Web', icon: <DoodleLinkIcon className="w-5 h-5" />, action: () => window.open(profile?.githubUrl || 'https://github.com', '_blank') },
-    { id: 'linkedin', title: 'LinkedIn Profile Link', desc: 'Launch browser to view professional networking profile on linkedin.com.', category: 'Web', icon: <DoodleLinkIcon className="w-5 h-5" />, action: () => window.open(profile?.linkedinUrl || 'https://linkedin.com', '_blank') },
-  ];
-
-  const searchResults = allSearchableItems.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
+  const openApp = useCallback(
+    (id: string) => {
+      openWindow(id, APP_BY_ID[id]?.title);
+      onClose();
+    },
+    [openWindow, onClose],
   );
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        ref={menuRef}
-        initial={{ opacity: 0, y: 80, scale: 0.94 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 80, scale: 0.94 }}
-        transition={{ type: 'spring', damping: 24, stiffness: 220 }}
-        onClick={(e) => e.stopPropagation()}
-        className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 w-[95vw] sm:w-[610px] h-[620px] bg-[#fffdfa] border-[2.5px] border-[#2d2a26] rounded-3xl shadow-[6px_6px_0px_0px_#2d2a26] p-4 text-[#2d2a26] backdrop-blur-xl flex flex-col justify-between overflow-hidden select-none font-doodle"
-      >
-        {/* Top Header & Search Bar */}
-        <div className="p-3 pb-2">
-          <div className="relative flex items-center">
-            <div className="absolute left-3.5 flex items-center justify-center">
-              <DoodleSearchIcon className="w-5 h-5" />
-            </div>
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="✨ Search notebook apps, files, settings..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-12 pl-11 pr-4 border-[2.5px] border-[#2d2a26] rounded-2xl bg-amber-50/70 text-sm text-[#2d2a26] font-bold placeholder-[#2d2a26]/60 focus:outline-none focus:bg-amber-100/90 transition font-doodle shadow-[3px_3px_0px_0px_#2d2a26]"
-            />
-          </div>
-        </div>
+  const links = useMemo(() => getProfileLinks(profile), [profile]);
+  const placeholder = isPlaceholderProfile(profile);
 
-        {/* Search Results / Pinned App Cards */}
-        <div className="flex-1 px-3 py-2 overflow-y-auto min-h-0 flex flex-col font-doodle">
-          {searchQuery ? (
-            // Search Results Layout
-            searchResults.length > 0 ? (
-              <div className="flex gap-4 h-full min-h-0">
-                {/* Left Column: Results List */}
-                <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
-                  <div className="font-doodle text-xs uppercase tracking-wider text-[#2d2a26] font-bold mb-1 flex items-center gap-1">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
-                    <span>Search Results</span>
-                  </div>
-                  {searchResults.map((item, idx) => (
-                    <button
-                      key={item.id}
-                      onMouseEnter={() => setSelectedSearchIndex(idx)}
-                      onClick={item.action}
-                      className={`
-                        w-full flex items-center justify-between p-3 rounded-2xl border-[2.5px] border-[#2d2a26] transition cursor-pointer text-left font-doodle
-                        ${selectedSearchIndex === idx 
-                          ? 'bg-sky-100 text-[#2d2a26] shadow-[3px_3px_0px_0px_#2d2a26]' 
-                          : 'bg-white text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] hover:bg-amber-50'
-                        }
-                      `}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-1.5 rounded-xl bg-amber-100/80 border border-[#2d2a26]">
-                          {item.icon}
+  const results = useMemo<SearchResult[]>(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const has = (...fields: Array<string | null | undefined>) => fields.some((f) => f?.toLowerCase().includes(q));
+    const out: SearchResult[] = [];
+
+    LAUNCHER_APPS.filter((a) => has(a.title, a.desc, a.id)).forEach((a) =>
+      out.push({ key: `app-${a.id}`, group: 'Apps', title: a.title, subtitle: a.desc, icon: <a.Icon className="w-5 h-5" />, action: () => openApp(a.id) }),
+    );
+
+    projects
+      .filter((p) => has(p.title, ...(p.tags ?? [])))
+      .slice(0, MAX_PER_GROUP)
+      .forEach((p) =>
+        out.push({
+          key: `project-${p.id}`,
+          group: 'Projects',
+          title: p.title,
+          subtitle: p.tags?.length ? p.tags.join(' · ') : p.description,
+          icon: <DoodleFolderIcon className="w-5 h-5" />,
+          action: () => {
+            setSelectedProjectId(p.id);
+            openApp('projects');
+          },
+        }),
+      );
+
+    const skillHits: SearchResult[] = [];
+    skills.forEach((g) => {
+      const categoryHit = has(g.category);
+      g.skills.forEach((skill) => {
+        if (categoryHit || has(skill)) {
+          skillHits.push({
+            key: `skill-${g.category}-${skill}`,
+            group: 'Skills',
+            title: skill,
+            subtitle: `${g.category} · shown in Bio.txt`,
+            icon: <Wrench className="w-4 h-4" aria-hidden />,
+            action: () => openApp('bio'),
+          });
+        }
+      });
+    });
+    out.push(...skillHits.slice(0, MAX_PER_GROUP));
+
+    const settings: Array<Omit<SearchResult, 'group'> & { terms: string }> = [
+      { key: 'set-wallpaper', title: 'Change wallpaper', subtitle: 'Settings → Personalization', terms: 'wallpaper background theme dark light mode', icon: <Palette className="w-4 h-4" aria-hidden />, action: () => openApp('settings') },
+      { key: 'set-volume', title: 'Companion speech volume', subtitle: 'Settings → Companions', terms: 'sound volume speech audio mute', icon: <Volume2 className="w-4 h-4" aria-hidden />, action: () => openApp('settings') },
+      { key: 'set-pets', title: 'Companion pets', subtitle: 'Spawn, size and speed in Frieren.exe', terms: 'pet pets companion frieren fern stark spawn', icon: <Sparkles className="w-4 h-4" aria-hidden />, action: () => openApp('frieren') },
+      { key: 'set-lock', title: 'Lock screen', subtitle: 'Show the lock screen', terms: 'lock screen sign out', icon: <Lock className="w-4 h-4" aria-hidden />, action: () => { onClose(); lockScreen(); } },
+    ];
+    settings.filter((s) => has(s.title, s.subtitle, s.terms)).forEach((s) => out.push({ key: s.key, group: 'Settings', title: s.title, subtitle: s.subtitle, icon: s.icon, action: s.action }));
+
+    links.filter((l) => has(l.label, l.url)).forEach((l) =>
+      out.push({
+        key: `link-${l.id}`,
+        group: 'Links',
+        title: l.label,
+        subtitle: l.url,
+        icon: <DoodleLinkIcon className="w-5 h-5" />,
+        action: () => {
+          openExternal(l.url);
+          onClose();
+        },
+      }),
+    );
+
+    return GROUP_ORDER.flatMap((g) => out.filter((r) => r.group === g));
+  }, [query, projects, skills, links, openApp, setSelectedProjectId, lockScreen, onClose]);
+
+  const safeIndex = Math.min(selectedIndex, Math.max(0, results.length - 1));
+  const selected = results[safeIndex];
+
+  // Keep the highlighted result visible while navigating with the keyboard
+  useEffect(() => {
+    if (!selected) return;
+    listRef.current?.querySelector<HTMLElement>(`[data-result-key="${CSS.escape(selected.key)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
+
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' && results.length) {
+      e.preventDefault();
+      setSelectedIndex((safeIndex + 1) % results.length);
+    } else if (e.key === 'ArrowUp' && results.length) {
+      e.preventDefault();
+      setSelectedIndex((safeIndex - 1 + results.length) % results.length);
+    } else if (e.key === 'Enter' && selected) {
+      e.preventDefault();
+      selected.action();
+    } else if (e.key === 'Escape' && query) {
+      // First Escape clears the query; the second one (handled by useDismiss) closes the menu
+      e.stopPropagation();
+      e.nativeEvent.stopImmediatePropagation();
+      setQuery('');
+    }
+  };
+
+  const recentItems = recentlyOpened.map((id) => APP_BY_ID[id]).filter((a) => a && a.launcher).slice(0, 4);
+  const allApps = [...LAUNCHER_APPS].sort((a, b) => a.title.localeCompare(b.title));
+
+  const confirmRestart = () =>
+    showConfirm('Restart Aura OS?', 'The page will reload and any unsaved changes in open windows will be lost.', () => window.location.reload(), {
+      confirmLabel: 'Restart',
+      tone: 'danger',
+    });
+
+  return (
+    <motion.div
+      ref={menuRef}
+      role="dialog"
+      aria-label="Start menu"
+      initial={{ opacity: 0, y: 60, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 60, scale: 0.96 }}
+      transition={{ type: 'spring', damping: 24, stiffness: 240 }}
+      onClick={(e) => e.stopPropagation()}
+      className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--spacing-taskbar)+0.5rem)] z-[9000] w-[calc(100vw-1rem)] sm:w-[610px] h-[min(620px,calc(100dvh-var(--spacing-taskbar)-1.5rem))] bg-surface text-fg border-[2.5px] border-line rounded-2xl shadow-doodle-lg p-3 sm:p-4 flex flex-col gap-3 overflow-hidden select-none font-doodle"
+    >
+      {/* Search */}
+      <div className="relative flex items-center shrink-0">
+        <DoodleSearchIcon className="absolute left-3 w-5 h-5 pointer-events-none" aria-hidden />
+        <input
+          ref={inputRef}
+          type="search"
+          role="combobox"
+          aria-expanded={!!query}
+          aria-controls={listboxId}
+          aria-activedescendant={selected ? `${listboxId}-${safeIndex}` : undefined}
+          aria-label="Search apps, projects, skills and settings"
+          placeholder="Search apps, projects, skills..."
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSelectedIndex(0);
+          }}
+          onKeyDown={onSearchKeyDown}
+          className="w-full h-11 pl-10 pr-4 rounded-xl border-2 border-line bg-surface-2 text-sm text-fg font-mono placeholder:text-fg-muted/70 shadow-doodle-sm outline-none focus:bg-surface focus:shadow-doodle transition"
+        />
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {query ? (
+          results.length > 0 ? (
+            <div className="flex gap-3 h-full min-h-0">
+              <div ref={listRef} id={listboxId} role="listbox" aria-label="Search results" className="flex-1 min-w-0 overflow-y-auto pr-1 flex flex-col gap-1.5">
+                {GROUP_ORDER.map((group) => {
+                  const items = results.map((r, i) => ({ r, i })).filter(({ r }) => r.group === group);
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={group} role="group" aria-label={group} className="flex flex-col gap-1.5">
+                      <div className="text-2xs font-bold uppercase tracking-wider text-fg-muted px-1 pt-1">{group}</div>
+                      {items.map(({ r, i }) => (
+                        <div
+                          key={r.key}
+                          id={`${listboxId}-${i}`}
+                          data-result-key={r.key}
+                          role="option"
+                          aria-selected={i === safeIndex}
+                          onMouseEnter={() => setSelectedIndex(i)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={r.action}
+                          className={cx(
+                            'w-full flex items-center gap-3 p-2.5 rounded-xl border-2 cursor-pointer text-left transition',
+                            i === safeIndex ? 'bg-highlight text-ink border-ink shadow-doodle-sm' : 'bg-surface-2 text-fg border-line hover:bg-surface-3',
+                          )}
+                        >
+                          <span className="shrink-0 w-8 h-8 rounded-lg border-2 border-line bg-surface flex items-center justify-center text-fg">{r.icon}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm font-bold truncate">{r.title}</span>
+                            <span className={cx('block text-2xs truncate', i === safeIndex ? 'text-ink/75' : 'text-fg-muted')}>{r.subtitle}</span>
+                          </span>
                         </div>
-                        <span className="text-sm font-bold truncate font-doodle">{item.title}</span>
-                      </div>
-                      <span className="text-[10px] text-[#2d2a26] border border-[#2d2a26] bg-amber-200/80 px-2 py-0.5 rounded-full font-bold uppercase">
-                        {item.category}
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selected && (
+                <aside className="w-[200px] hidden sm:flex flex-col justify-between gap-3 p-4 rounded-2xl border-2 border-line bg-surface-2 shadow-doodle-sm">
+                  <div className="flex flex-col items-center text-center gap-2.5 min-h-0">
+                    <span className="w-14 h-14 rounded-2xl border-2 border-line bg-surface flex items-center justify-center shadow-doodle-xs [&>svg]:w-7 [&>svg]:h-7">{selected.icon}</span>
+                    <h4 className="text-sm font-bold break-words">{selected.title}</h4>
+                    <Badge tone="highlight">{selected.group}</Badge>
+                    <p className="text-xs text-fg-muted leading-relaxed overflow-y-auto pt-2 border-t-2 border-dashed border-line/40 w-full break-words">{selected.subtitle}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={selected.action}
+                    className="w-full h-9 rounded-xl border-2 border-ink bg-highlight hover:bg-highlight-strong text-ink text-xs font-bold shadow-doodle-sm cursor-pointer"
+                  >
+                    {selected.group === 'Links' ? 'Open link' : selected.group === 'Projects' ? 'View project' : 'Open'}
+                  </button>
+                </aside>
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              icon={<DoodleSearchIcon className="w-8 h-8" />}
+              title={`No matches for "${query}"`}
+              message={dataStatus === 'loading' ? 'Portfolio data is still loading...' : 'Try an app name, a project, a technology or a setting.'}
+            />
+          )
+        ) : viewMode === 'allApps' ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex justify-between items-center mb-3">
+              <button
+                type="button"
+                onClick={() => setViewMode('pinned')}
+                className="flex items-center gap-1 text-xs font-bold text-fg hover:underline cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" aria-hidden />
+                Back
+              </button>
+              <span className="text-xs font-bold uppercase tracking-wider text-fg-muted">All apps</span>
+            </div>
+            <div role="menu" aria-label="All apps" className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 content-start">
+              {allApps.map((app) => (
+                <button key={app.id} type="button" role="menuitem" onClick={() => openApp(app.id)} className={cx(tileClass, 'flex items-center gap-3 p-2.5 text-left')}>
+                  <app.Icon className="w-6 h-6 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold truncate">{app.title}</span>
+                    <span className="block text-2xs text-fg-muted line-clamp-2">{app.desc}</span>
+                  </span>
+                </button>
+              ))}
+              {links.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  role="menuitem"
+                  aria-label={`${l.label} (opens in a new tab)`}
+                  onClick={() => {
+                    openExternal(l.url);
+                    onClose();
+                  }}
+                  className={cx(tileClass, 'flex items-center gap-3 p-2.5 text-left')}
+                >
+                  <DoodleLinkIcon className="w-6 h-6 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold truncate">{l.label}</span>
+                    <span className="block text-2xs text-fg-muted truncate">{l.url}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-bold">Pinned</h2>
+              <button
+                type="button"
+                onClick={() => setViewMode('allApps')}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-xl border-2 border-line bg-surface-2 hover:bg-surface-3 text-2xs font-bold shadow-doodle-xs cursor-pointer"
+              >
+                All apps <ChevronRight className="w-3.5 h-3.5" aria-hidden />
+              </button>
+            </div>
+
+            <div role="menu" aria-label="Pinned apps" className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
+              {LAUNCHER_APPS.map((app) => (
+                <button
+                  key={app.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => openApp(app.id)}
+                  title={app.desc}
+                  className={cx(tileClass, 'p-2.5 flex flex-col items-center gap-2 min-w-0')}
+                >
+                  <app.Icon className="w-8 h-8" />
+                  <span className="text-2xs font-bold truncate w-full text-center">{app.title}</span>
+                </button>
+              ))}
+            </div>
+
+            {links.length > 0 && (
+              <div className="mt-4">
+                <h2 className="text-xs font-bold mb-2 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" aria-hidden /> Links
+                </h2>
+                <div role="menu" aria-label="Profile links" className="flex flex-wrap gap-2">
+                  {links.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      role="menuitem"
+                      aria-label={`${l.label} (opens in a new tab)`}
+                      onClick={() => {
+                        openExternal(l.url);
+                        onClose();
+                      }}
+                      className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border-2 border-line bg-surface-2 hover:bg-surface-3 text-xs font-bold shadow-doodle-xs cursor-pointer"
+                    >
+                      <DoodleLinkIcon className="w-4 h-4" />
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 border-t-2 border-dashed border-line/40 pt-3">
+              <h2 className="text-xs font-bold mb-2">Recently opened</h2>
+              {recentItems.length > 0 ? (
+                <div role="menu" aria-label="Recently opened" className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {recentItems.map((app) => (
+                    <button key={app.id} type="button" role="menuitem" onClick={() => openApp(app.id)} className={cx(tileClass, 'flex items-center gap-3 p-2.5 text-left')}>
+                      <app.Icon className="w-6 h-6 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-xs font-bold truncate">{app.title}</span>
+                        <span className="block text-2xs text-fg-muted truncate">{app.desc}</span>
                       </span>
                     </button>
                   ))}
                 </div>
-
-                {/* Right Column: Preview Pane */}
-                <div className="w-[210px] hidden sm:flex flex-col items-center justify-between p-4 rounded-2xl border-[2.5px] border-[#2d2a26] bg-amber-50/60 h-full shadow-[3px_3px_0px_0px_#2d2a26]">
-                  {searchResults[selectedSearchIndex] ? (
-                    (() => {
-                      const sel = searchResults[selectedSearchIndex];
-                      return (
-                        <>
-                          <div className="flex flex-col items-center text-center gap-3 w-full font-doodle">
-                            <div className="w-14 h-14 rounded-2xl border-[2.5px] border-[#2d2a26] bg-amber-100 flex items-center justify-center shadow-[2px_2px_0px_0px_#2d2a26]">
-                              <div className="transform scale-125">
-                                {sel.icon}
-                              </div>
-                            </div>
-                            <div className="w-full">
-                              <h4 className="text-sm font-bold text-[#2d2a26] truncate font-doodle">{sel.title}</h4>
-                              <span className="text-[10px] text-[#2d2a26] font-bold uppercase tracking-wider bg-amber-200 px-2 py-0.5 rounded-md border border-[#2d2a26]">
-                                {sel.category}
-                              </span>
-                            </div>
-                            <p className="text-xs text-[#2d2a26]/80 leading-relaxed max-h-[150px] overflow-y-auto pt-2 border-t-2 border-dashed border-[#2d2a26]/30 w-full font-doodle font-medium">
-                              {sel.desc}
-                            </p>
-                          </div>
-                          <button
-                            onClick={sel.action}
-                            className="w-full py-2.5 rounded-xl border-[2.5px] border-[#2d2a26] bg-sky-300 hover:bg-sky-400 text-[#2d2a26] text-xs font-bold transition cursor-pointer text-center font-doodle shadow-[3px_3px_0px_0px_#2d2a26]"
-                          >
-                            {sel.category === 'Web' ? 'Open Link 🚀' : 'Open App ✨'}
-                          </button>
-                        </>
-                      );
-                    })()
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center text-[#2d2a26]/70 gap-2 font-doodle">
-                <span className="text-3xl">✏️</span>
-                <div className="text-sm font-bold">No doodle matches for "{searchQuery}"</div>
-                <div className="text-xs text-[#2d2a26]/60 font-medium">Try searching for other apps or settings.</div>
-              </div>
-            )
-          ) : viewMode === 'allApps' ? (
-            // All Apps View
-            <div className="flex-1 flex flex-col min-h-0 font-doodle">
-              <div className="flex justify-between items-center mb-3 text-xs font-bold text-[#2d2a26]">
-                <button
-                  onClick={() => setViewMode('pinned')}
-                  className="flex items-center gap-1 hover:text-sky-600 text-[#2d2a26] transition cursor-pointer font-doodle"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span>Back to Pinned</span>
-                </button>
-                <span className="text-xs text-[#2d2a26] uppercase tracking-wider font-bold bg-amber-200 px-2 py-0.5 rounded-md border border-[#2d2a26]">All Notebook Apps</span>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 max-h-[380px] scrollbar-thin">
-                {Object.entries(
-                  allAppsList.reduce((acc, app) => {
-                    const letter = app.letter;
-                    if (!acc[letter]) acc[letter] = [];
-                    acc[letter].push(app);
-                    return acc;
-                  }, {} as Record<string, typeof allAppsList>)
-                )
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([letter, apps]) => (
-                    <div key={letter} className="flex flex-col gap-1.5">
-                      <div className="text-xs font-bold text-[#2d2a26] px-2.5 py-0.5 border border-[#2d2a26] bg-amber-200 rounded-lg self-start select-none font-doodle shadow-[1.5px_1.5px_0px_0px_#2d2a26]">
-                        {letter}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pl-1">
-                        {apps.map((app) => (
-                          <button
-                            key={app.id}
-                            onClick={app.action}
-                            className="flex items-center gap-3 p-2.5 rounded-2xl border-[2.5px] border-[#2d2a26] bg-white hover:bg-amber-50 text-left transition cursor-pointer group shadow-[2.5px_2.5px_0px_0px_#2d2a26] font-doodle"
-                          >
-                            <div className="p-1.5 rounded-xl bg-amber-100 border border-[#2d2a26] group-hover:scale-110 transition-transform">
-                              {app.icon}
-                            </div>
-                            <span className="text-xs text-[#2d2a26] font-bold truncate">
-                              {app.title}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          ) : (
-            // Default Start Launcher View (Pinned Cards & Recently Opened)
-            <>
-              <div className="flex justify-between items-center mb-3 text-xs font-bold text-[#2d2a26]">
-                <span className="font-doodle text-[#2d2a26] text-sm font-bold tracking-wide">📌 Pinned Notebook Apps</span>
-                <button 
-                  onClick={() => setViewMode('allApps')}
-                  className="px-3 py-1 rounded-xl border-[2px] border-[#2d2a26] bg-amber-100 hover:bg-amber-200 text-xs text-[#2d2a26] font-bold transition cursor-pointer font-doodle shadow-[2px_2px_0px_0px_#2d2a26]"
-                >
-                  All Apps →
-                </button>
-              </div>
-              
-              {/* Hand-Drawn Pinned App Cards */}
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                {pinnedApps.map((app) => (
-                  <button
-                    key={app.id}
-                    onClick={app.action}
-                    className="border-[2.5px] border-[#2d2a26] bg-white hover:bg-amber-50 rounded-2xl p-3 shadow-[3.5px_3.5px_0px_0px_#2d2a26] transition flex flex-col items-center gap-2 group cursor-pointer font-doodle hover:-translate-y-0.5 active:translate-y-0"
-                  >
-                    <div className="p-2 rounded-xl bg-amber-100/80 border border-[#2d2a26] group-hover:scale-110 transition-transform">
-                      {app.icon}
-                    </div>
-                    <span className="text-xs text-[#2d2a26] truncate w-full text-center font-doodle font-bold">
-                      {app.title}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Recently Opened Apps */}
-              <div className="mt-5 border-t-2 border-dashed border-[#2d2a26]/30 pt-3.5">
-                <div className="text-xs font-bold text-[#2d2a26] mb-2.5 font-doodle tracking-wide">🕒 Recently Opened</div>
-                {recentItems.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {recentItems.map((item, idx) => (
-                      <button
-                        key={idx}
-                        onClick={item.action}
-                        className="flex items-center gap-3 p-2.5 rounded-2xl border-[2.5px] border-[#2d2a26] bg-white hover:bg-amber-50 text-left transition cursor-pointer group font-doodle shadow-[2.5px_2.5px_0px_0px_#2d2a26]"
-                      >
-                        <div className="p-2 rounded-xl bg-amber-100/80 border border-[#2d2a26] group-hover:scale-110 transition-transform">
-                          {item.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-[#2d2a26] font-bold truncate font-doodle">{item.title}</div>
-                          <div className="text-[11px] text-[#2d2a26]/70 truncate font-doodle font-medium">{item.desc}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-xs text-[#2d2a26]/60 py-2 font-doodle font-medium">
-                    No recently opened applications yet.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Footer Settings & Power Options Card */}
-        <div className="h-14 px-4 bg-amber-100/90 rounded-2xl border-[2.5px] border-[#2d2a26] flex justify-between items-center shadow-[3.5px_3.5px_0px_0px_#2d2a26]">
-          <div className="flex items-center gap-3 font-doodle">
-            <div className="w-8 h-8 rounded-full border-[2px] border-[#2d2a26] bg-white flex items-center justify-center text-[#2d2a26] text-xs font-bold shadow-[1.5px_1.5px_0px_0px_#2d2a26]">
-              <User className="w-4 h-4 text-[#2d2a26]" />
-            </div>
-            <div className="leading-tight">
-              <div className="text-xs font-bold text-[#2d2a26] font-doodle">{PROFILE.name}</div>
-              <div className="text-[10px] text-[#2d2a26]/70 font-doodle font-semibold">{PROFILE.title}</div>
+              ) : (
+                <p className="text-xs text-fg-muted">Nothing opened yet.</p>
+              )}
             </div>
           </div>
+        )}
+      </div>
 
-          <button
+      {/* Footer: profile + power */}
+      <div className="shrink-0 h-14 px-3 rounded-2xl border-2 border-line bg-surface-2 flex justify-between items-center gap-2 shadow-doodle-sm">
+        <button
+          type="button"
+          onClick={() => openApp(placeholder ? 'admin' : 'bio')}
+          className="flex items-center gap-2.5 min-w-0 text-left rounded-xl px-1 py-1 hover:bg-surface-3 cursor-pointer"
+          aria-label={placeholder ? 'Open Developer Hub' : `Open ${profile.name}'s bio`}
+        >
+          {!placeholder && profile.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatarUrl} alt="" className="w-9 h-9 rounded-full border-2 border-line object-cover bg-surface" />
+          ) : (
+            <span aria-hidden className="w-9 h-9 rounded-full border-2 border-ink bg-highlight text-ink flex items-center justify-center text-sm font-bold">
+              {placeholder ? 'A' : profile.name.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className="leading-tight min-w-0">
+            <span className="block text-xs font-bold truncate">{placeholder ? 'Aura OS' : profile.name}</span>
+            <span className="block text-2xs text-fg-muted truncate">{placeholder ? `Version ${OS_VERSION}` : profile.title}</span>
+          </span>
+        </button>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <IconButton
+            label="Lock screen"
+            size="sm"
             onClick={() => {
-              showConfirm(
-                'Power Options',
-                'Shut down simulated environment? (This will reload the page)',
-                () => {
-                  window.location.reload();
-                }
-              );
+              onClose();
+              lockScreen();
             }}
-            className="p-2 rounded-xl border-[2px] border-[#2d2a26] bg-rose-200 hover:bg-rose-300 text-[#2d2a26] transition cursor-pointer shadow-[2px_2px_0px_0px_#2d2a26]"
-            title="Sign out / Power Options"
           >
-            <Power className="w-4 h-4" />
-          </button>
+            <Lock className="w-3.5 h-3.5" />
+          </IconButton>
+          <IconButton label="Restart Aura OS" size="sm" variant="danger" onClick={confirmRestart}>
+            <Power className="w-3.5 h-3.5" />
+          </IconButton>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </motion.div>
   );
 }

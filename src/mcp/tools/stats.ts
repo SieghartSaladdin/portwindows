@@ -1,43 +1,34 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { prisma } from "../../lib/db";
-import { jsonResponse, textResponse } from "./index";
+import { PROFILE_ID } from "../../lib/server/portfolio";
+import { errorMessage, errorResponse, jsonResponse } from "./helpers";
 
 export function registerStatsTools(server: McpServer) {
-  server.tool(
+  server.registerTool(
     "get_dashboard_stats",
-    "Get live metrics and summary overview of the Admin Dashboard (Projects count, Skill groups, Experiences, Profile status, and Database diagnostics).",
-    {},
+    { description: "Summary of the portfolio content: counts per collection, unread contact messages and profile status." },
     async () => {
       try {
-        const [projectsCount, skillsCount, experiencesCount, profile] = await Promise.all([
-          prisma.project.count(),
-          prisma.skill.count(),
-          prisma.experience.count(),
-          prisma.profile.findFirst(),
-        ]);
+        const [projects, skillGroups, experiences, educations, certifications, messages, unreadMessages, profile] =
+          await Promise.all([
+            prisma.project.count(),
+            prisma.skill.count(),
+            prisma.experience.count(),
+            prisma.education.count(),
+            prisma.certification.count(),
+            prisma.contactMessage.count(),
+            prisma.contactMessage.count({ where: { read: false } }),
+            prisma.profile.findUnique({ where: { id: PROFILE_ID } }),
+          ]);
 
         return jsonResponse({
-          status: "ONLINE",
-          engine: "PostgreSQL (portfolio_db)",
-          orm: "Prisma Client",
-          metrics: {
-            totalProjects: projectsCount,
-            totalSkillGroups: skillsCount,
-            totalExperiences: experiencesCount,
-            profileConfigured: !!profile,
-          },
-          profileSummary: profile
-            ? {
-                name: profile.name,
-                title: profile.title,
-                location: profile.location,
-                email: profile.email,
-              }
-            : null,
+          metrics: { projects, skillGroups, experiences, educations, certifications, messages, unreadMessages },
+          profileConfigured: !!profile,
+          profileSummary: profile ? { name: profile.name, title: profile.title, location: profile.location, email: profile.email } : null,
         });
-      } catch (err: any) {
-        return textResponse(`Error retrieving dashboard stats: ${err.message}`);
+      } catch (err) {
+        return errorResponse(`Error retrieving dashboard stats: ${errorMessage(err)}`);
       }
-    }
+    },
   );
 }

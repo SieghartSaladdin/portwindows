@@ -1,58 +1,60 @@
 import { NextResponse } from 'next/server';
+import { stripMarkdown } from '@/lib/server/plainText';
+import { AIMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { graph } from '@/lib/agents/main_agent/graph';
-import { HumanMessage, AIMessage, BaseMessage } from '@langchain/core/messages';
+import { LlmNotConfiguredError } from '@/lib/agents/main_agent/nodes';
+import { jsonError, parseJsonBody } from '@/lib/server/http';
+import { getLlmConfig, LLM_TIMEOUT_MS } from '@/lib/server/llm';
+import { createRateLimiter, getClientIp } from '@/lib/server/rateLimit';
+import { chatSchema } from '@/lib/server/validation';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 75;
+
+const globalForChat = globalThis as unknown as { __auraChatLimiter?: ReturnType<typeof createRateLimiter> };
+const chatLimiter = (globalForChat.__auraChatLimiter ??= createRateLimiter({ limit: 20, windowMs: 60 * 1000 }));
+
+const NOT_CONFIGURED = 'The AI assistant is not configured on this server yet.';
+const UNAVAILABLE = 'The AI assistant is unavailable right now. Please try again in a moment.';
+
+function isTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === 'AbortError' || error.name === 'TimeoutError' || /abort|timed? ?out/i.test(error.message);
+}
+
+/** POST { message, history?, partner? } -> { text, action } */
 export async function POST(request: Request) {
-  try {
-    const { message, history, partner } = await request.json();
-    
-    if (!message) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
-    }
-
-    // Map history to LangChain message formats
-    const langChainMessages: BaseMessage[] = [];
-    if (history && Array.isArray(history)) {
-      history.forEach((msg: any) => {
-        if (msg.role === 'user') {
-          langChainMessages.push(new HumanMessage(msg.content));
-        } else if (msg.role === 'assistant') {
-          langChainMessages.push(new AIMessage(msg.content));
-        }
-      });
-    }
-
-    // Add current user message
-    langChainMessages.push(new HumanMessage(message));
-
-    // Execute LangGraph
-    const inputs = {
-      messages: langChainMessages,
-      partner: partner || 'robot',
-    };
-
-    const finalState = await graph.invoke(inputs);
-
-    if (partner === 'robot') {
-      return NextResponse.json({
-        text: finalState.output,
-        action: finalState.action
-      });
-    }
-
-    return NextResponse.json({ text: finalState.output });
-  } catch (error: any) {
-    console.error('LangGraph API route error:', error);
-    
-    const provider = process.env.LLM_PROVIDER || 'openrouter';
-    const baseUrl = process.env.LLM_API_BASE_URL || 'https://openrouter.ai/api/v1';
-    const errorDetail = provider === 'ollama'
-      ? `Ollama API request failed. Please check if your Ollama instance is running at ${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'} and the model "${process.env.OLLAMA_MODEL || 'gemma2'}" is pulled.`
-      : `LLM API request failed at endpoint: ${baseUrl}. Please make sure your LLM_API_KEY or OPENROUTER_API_KEY is configured in your env.`;
-
-    return NextResponse.json({
-      text: `Thinking...\n${errorDetail}\n...done thinking.\n\nFrieren-sama, please check the agent's graph execution logs.`,
-      fallback: true
+  const limit = chatLimiter.consume(getClientIp(request));
+  if (!limit.allowed) {
+    return jsonError(429, 'You are sending messages too quickly. Please wait a moment.', undefined, {
+      'Retry-After': String(limit.retryAfter),
     });
+  }
+
+  const parsed = await parseJsonBody(request, chatSchema);
+  if (!parsed.ok) return parsed.response;
+  const { message, history, partner } = parsed.data;
+
+  if (!getLlmConfig()) return jsonError(503, NOT_CONFIGURED);
+
+  const messages: BaseMessage[] = history.map((m) =>
+    m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content),
+  );
+  messages.push(new HumanMessage(message));
+
+  try {
+    const finalState = await graph.invoke(
+      { messages, partner },
+      { signal: AbortSignal.timeout(LLM_TIMEOUT_MS), recursionLimit: 12 },
+    );
+    const text = stripMarkdown(finalState.output || '');
+    if (!text) return jsonError(503, UNAVAILABLE);
+    return NextResponse.json({ text, action: partner === 'robot' ? finalState.action ?? null : null });
+  } catch (error) {
+    if (error instanceof LlmNotConfiguredError) return jsonError(503, NOT_CONFIGURED);
+    // Log the reason server-side only; never echo provider URLs or stack traces to the client.
+    console.error('[api] chat failed:', error instanceof Error ? `${error.name}: ${error.message}` : error);
+    if (isTimeout(error)) return jsonError(504, 'The AI assistant took too long to answer. Please try again.');
+    return jsonError(503, UNAVAILABLE);
   }
 }

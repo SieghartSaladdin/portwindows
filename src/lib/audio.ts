@@ -11,7 +11,9 @@ export function playTextBlip(character: 'frieren' | 'fern' | 'stark' | 'robot' =
 
     // Lazily initialize AudioContext on user interaction
     if (!audioCtx) {
-      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      audioCtx = new Ctor();
     }
 
     if (audioCtx.state === 'suspended') {
@@ -55,7 +57,7 @@ export function playTextBlip(character: 'frieren' | 'fern' | 'stark' | 'robot' =
 
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.05);
-  } catch (e) {
+  } catch {
     // Ignore audio context autoplay blocking/suspension errors
   }
 }

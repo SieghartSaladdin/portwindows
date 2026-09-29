@@ -1,69 +1,51 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { isAuthenticated } from '@/lib/auth';
+import { handleRouteError, jsonError, parseJsonBody, requireAdmin } from '@/lib/server/http';
+import { PROFILE_ID } from '@/lib/server/portfolio';
+import { serializeProfile } from '@/lib/server/serializers';
+import { profileSchema } from '@/lib/server/validation';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const profile = await prisma.profile.findUnique({
-      where: { id: '1' },
-    });
-    
-    if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-    }
-    
-    return NextResponse.json(profile);
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    const profile = await prisma.profile.findUnique({ where: { id: PROFILE_ID } });
+    if (!profile) return jsonError(404, 'Profile not found.');
+    return NextResponse.json(serializeProfile(profile));
+  } catch (error) {
+    return handleRouteError(error, 'get profile', 'Profile');
   }
 }
 
 export async function PUT(request: Request) {
-  try {
-    if (!isAuthenticated(request)) {
-      return NextResponse.json({ error: 'Sesi telah berakhir atau tidak sah. Silakan login kembali ke Developer Hub.' }, { status: 401 });
-    }
-    
-    const body = await request.json();
-    const { name, title, location, email, bio, githubUrl, linkedinUrl } = body;
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+  const parsed = await parseJsonBody(request, profileSchema);
+  if (!parsed.ok) return parsed.response;
+  const d = parsed.data;
 
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return NextResponse.json({ error: 'Nama lengkap wajib diisi.' }, { status: 400 });
-    }
-    
+  try {
     const profile = await prisma.profile.upsert({
-      where: { id: '1' },
-      update: {
-        name: name.trim(),
-        title: title ? title.trim() : '',
-        location: location ? location.trim() : '',
-        email: email ? email.trim() : '',
-        bio: bio ? bio.trim() : '',
-        githubUrl: githubUrl ? githubUrl.trim() : null,
-        linkedinUrl: linkedinUrl ? linkedinUrl.trim() : null,
-      },
+      where: { id: PROFILE_ID },
+      // Fields omitted from the body are left untouched.
+      update: d,
       create: {
-        id: '1',
-        name: name.trim(),
-        title: title ? title.trim() : '',
-        location: location ? location.trim() : '',
-        email: email ? email.trim() : '',
-        bio: bio ? bio.trim() : '',
-        githubUrl: githubUrl ? githubUrl.trim() : null,
-        linkedinUrl: linkedinUrl ? linkedinUrl.trim() : null,
+        id: PROFILE_ID,
+        name: d.name,
+        title: d.title ?? '',
+        location: d.location ?? '',
+        email: d.email ?? '',
+        bio: d.bio ?? '',
+        githubUrl: d.githubUrl ?? null,
+        linkedinUrl: d.linkedinUrl ?? null,
+        websiteUrl: d.websiteUrl ?? null,
+        phone: d.phone ?? null,
+        avatarUrl: d.avatarUrl ?? null,
+        resumeUrl: d.resumeUrl ?? null,
       },
     });
-    
-    return NextResponse.json(profile);
-  } catch (error: any) {
-    console.error('API Profile PUT Error:', error);
-    const msg = String(error?.message || '');
-    if (msg.includes('does not exist') || msg.includes('relation') || msg.includes('table')) {
-      return NextResponse.json({ error: 'Tabel database PostgreSQL belum dibuat. Silakan jalankan npx prisma db push.' }, { status: 500 });
-    }
-    if (msg.includes('connect') || msg.includes('ECONNREFUSED') || msg.includes('reach database')) {
-      return NextResponse.json({ error: 'Koneksi ke PostgreSQL gagal. Pastikan PostgreSQL server berjalan dan DATABASE_URL sudah dikonfigurasi.' }, { status: 500 });
-    }
-    return NextResponse.json({ error: error?.message || 'Gagal memperbarui profil di database.' }, { status: 500 });
+    return NextResponse.json(serializeProfile(profile));
+  } catch (error) {
+    return handleRouteError(error, 'update profile', 'Profile');
   }
 }

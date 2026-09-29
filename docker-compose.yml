@@ -1,15 +1,18 @@
 name: portwindows
 
+# Secrets are never hard-coded here. Put them in a `.env` file next to this file
+# (docker compose reads it automatically), or run `docker compose --env-file .env.local up -d`.
+# Required: POSTGRES_PASSWORD, ADMIN_USERNAME, ADMIN_PASSWORD, JWT_SECRET, MCP_API_KEY.
+
 services:
-  # 🐘 PostgreSQL 16 Database Container
   postgres:
     image: postgres:16-alpine
     container_name: portwindows-db
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-portfolio_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-portfolio_db}
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
@@ -20,41 +23,40 @@ services:
       timeout: 5s
       retries: 5
 
-  # 💻 Next.js Aura OS Web Application & API Service
   portwindows:
-    image: rfieq/portwindows:latest
+    build: .
+    image: portwindows:latest
     container_name: portwindows
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "3000:3000"
-      - "3002:3002"
+      - "${APP_PORT:-3001}:3000"
+      - "${MCP_PORT:-3003}:3002"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - HOSTNAME=0.0.0.0
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
-      - LLM_API_BASE_URL=${LLM_API_BASE_URL:-https://ai.rfieq.me/v1}
-      - LLM_API_KEY=${LLM_API_KEY}
-      - LLM_MODEL=${LLM_MODEL:-Combo_Secondary}
-      - MCP_API_KEY=${MCP_API_KEY:-mcp-sk-secretkey12345}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Doraemon123.}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/portfolio_db?schema=public}
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-portfolio_db}?schema=public}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Doraemon123.}
+      JWT_SECRET: ${JWT_SECRET:-9f8e7d6c5b4a3120192837465fecba09}
+      MCP_API_KEY: ${MCP_API_KEY:-mcp-sk-secretkey12345}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      LLM_API_BASE_URL: ${LLM_API_BASE_URL:-https://ai.rfieq.me/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-sk-19f58087bea21825-5ith38-19876356}
+      LLM_MODEL: ${LLM_MODEL:-Combo_Secondary}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-sk-19f58087bea21825-5ith38-19876356}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://qifor.my.id}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    # Apply schema synchronization (never drops data), then start server.
     command: >
-      sh -c "
-        echo '🚀 Synchronizing PostgreSQL Schema with Prisma...' &&
-        node ./node_modules/prisma/build/index.js db push --accept-data-loss &&
-        echo '⚡ Starting Next.js App Server...' &&
-        node server.js
-      "
-    env_file:
-      - .env.local
+      sh -c "node ./node_modules/prisma/build/index.js db push --accept-data-loss && node server.js"
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -62,3 +64,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

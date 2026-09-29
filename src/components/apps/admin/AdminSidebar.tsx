@@ -1,126 +1,109 @@
 'use client';
 
 import React from 'react';
-import { Database, User, Folder, Wrench, Briefcase, RefreshCw, LogOut } from 'lucide-react';
+import { Badge, IconButton, Button, cx } from '@/components/ui/primitives';
+import { DoodleAdminIcon, DoodleBioIcon, DoodleFolderIcon, DoodleHomeIcon } from '@/components/ui/DoodleIcons';
+import { ButtonSpinner } from './AdminShared';
+import {
+  DoodleBadgeIcon,
+  DoodleBriefcaseIcon,
+  DoodleGradCapIcon,
+  DoodleMailIcon,
+  DoodleSparkIcon,
+  IconLogout,
+  IconRefresh,
+} from './AdminIcons';
+
+export type AdminTab =
+  | 'overview'
+  | 'profile'
+  | 'projects'
+  | 'skills'
+  | 'experiences'
+  | 'educations'
+  | 'certifications'
+  | 'messages';
+
+export const ADMIN_TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'overview', label: 'Overview', icon: <DoodleHomeIcon className="w-5 h-5" /> },
+  { id: 'profile', label: 'Profile', icon: <DoodleBioIcon className="w-5 h-5" /> },
+  { id: 'projects', label: 'Projects', icon: <DoodleFolderIcon className="w-5 h-5" /> },
+  { id: 'skills', label: 'Skills', icon: <DoodleSparkIcon className="w-5 h-5" /> },
+  { id: 'experiences', label: 'Experience', icon: <DoodleBriefcaseIcon className="w-5 h-5" /> },
+  { id: 'educations', label: 'Education', icon: <DoodleGradCapIcon className="w-5 h-5" /> },
+  { id: 'certifications', label: 'Certifications', icon: <DoodleBadgeIcon className="w-5 h-5" /> },
+  { id: 'messages', label: 'Messages', icon: <DoodleMailIcon className="w-5 h-5" /> },
+];
 
 interface AdminSidebarProps {
-  isDark: boolean;
-  activeTab: 'overview' | 'profile' | 'projects' | 'skills' | 'experiences';
-  setActiveTab: (tab: 'overview' | 'profile' | 'projects' | 'skills' | 'experiences') => void;
-  projectsCount: number;
-  skillsCount: number;
-  experiencesCount: number;
-  loading: boolean;
-  onDbRefresh: () => void;
-  onLockSession: () => void;
+  activeTab: AdminTab;
+  onSelect: (tab: AdminTab) => void;
+  counts: Partial<Record<AdminTab, number>>;
+  unreadMessages: number;
+  syncing: boolean;
+  onSync: () => void;
+  onSignOut: () => void;
 }
 
-export function AdminSidebar({
-  isDark,
-  activeTab,
-  setActiveTab,
-  projectsCount,
-  skillsCount,
-  experiencesCount,
-  loading,
-  onDbRefresh,
-  onLockSession,
-}: AdminSidebarProps) {
+/**
+ * Wide containers (>= 48rem): vertical sidebar.
+ * Narrow containers: header row + horizontally scrollable tab strip.
+ */
+export function AdminSidebar({ activeTab, onSelect, counts, unreadMessages, syncing, onSync, onSignOut }: AdminSidebarProps) {
   return (
-    <div className={`w-56 border-r-2 border-[#2d2a26] flex flex-col justify-between p-4 shrink-0 shadow-[4px_0px_0px_0px_#2d2a26] ${
-      isDark ? 'bg-zinc-950/90 text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
-    }`}>
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-center gap-2.5 px-3 py-2 mb-3 border-b-2 border-[#2d2a26]">
-          <span className="text-amber-500">✏</span>
-          <Database className="w-4 h-4 text-amber-500" />
-          <span className={`font-extrabold text-xs uppercase tracking-wider ${isDark ? 'text-slate-100' : 'text-[#2d2a26]'}`}>Admin Control</span>
+    <aside className="shrink-0 flex flex-col bg-surface-2 border-b-[2.5px] border-line @3xl:w-56 @3xl:border-b-0 @3xl:border-r-[2.5px]">
+      <div className="flex items-center gap-2 px-3 py-2 @3xl:px-4 @3xl:py-3 border-b-2 border-dashed border-line">
+        <DoodleAdminIcon className="w-6 h-6 shrink-0" />
+        <span className="font-doodle font-bold text-sm text-fg flex-1 truncate">Developer Hub</span>
+        <div className="flex gap-1.5 @3xl:hidden">
+          <IconButton size="sm" label="Reload data" onClick={onSync} disabled={syncing}>
+            {syncing ? <ButtonSpinner /> : <IconRefresh className="w-3.5 h-3.5" />}
+          </IconButton>
+          <IconButton size="sm" label="Sign out" onClick={onSignOut}>
+            <IconLogout className="w-3.5 h-3.5" />
+          </IconButton>
         </div>
-
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border-2 border-[#2d2a26] text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'overview' 
-              ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]' 
-              : isDark ? 'bg-zinc-900/80 text-slate-300 hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2] shadow-[2px_2px_0px_0px_#2d2a26]'
-          }`}
-        >
-          <Database className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Overview & Stats</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border-2 border-[#2d2a26] text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'profile' 
-              ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]' 
-              : isDark ? 'bg-zinc-900/80 text-slate-300 hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2] shadow-[2px_2px_0px_0px_#2d2a26]'
-          }`}
-        >
-          <User className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Profile Editor</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('projects')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border-2 border-[#2d2a26] text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'projects' 
-              ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]' 
-              : isDark ? 'bg-zinc-900/80 text-slate-300 hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2] shadow-[2px_2px_0px_0px_#2d2a26]'
-          }`}
-        >
-          <Folder className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Projects ({projectsCount})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('skills')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border-2 border-[#2d2a26] text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'skills' 
-              ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]' 
-              : isDark ? 'bg-zinc-900/80 text-slate-300 hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2] shadow-[2px_2px_0px_0px_#2d2a26]'
-          }`}
-        >
-          <Wrench className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Skills ({skillsCount})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('experiences')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full border-2 border-[#2d2a26] text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'experiences' 
-              ? 'bg-[#fef08a] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]' 
-              : isDark ? 'bg-zinc-900/80 text-slate-300 hover:bg-zinc-800 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] text-[#2d2a26] hover:bg-[#f5efe2] shadow-[2px_2px_0px_0px_#2d2a26]'
-          }`}
-        >
-          <Briefcase className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Experiences ({experiencesCount})</span>
-        </button>
       </div>
 
-      {/* Footer actions */}
-      <div className="flex flex-col gap-2 pt-3 border-t-2 border-[#2d2a26]">
-        <button
-          onClick={onDbRefresh}
-          disabled={loading}
-          className={`flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl border-2 border-[#2d2a26] transition disabled:opacity-50 cursor-pointer font-mono font-bold shadow-[2px_2px_0px_0px_#2d2a26] ${
-            isDark ? 'bg-zinc-900 hover:bg-zinc-800 text-slate-200' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
-          }`}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-amber-500 ${loading ? 'animate-spin' : ''}`} />
-          <span>Sync DB</span>
-        </button>
+      <nav aria-label="Admin sections" className="flex gap-1.5 p-2 overflow-x-auto @3xl:flex-col @3xl:flex-1 @3xl:overflow-x-visible @3xl:overflow-y-auto @3xl:p-3">
+        {ADMIN_TABS.map((tab) => {
+          const active = tab.id === activeTab;
+          const count = tab.id === 'messages' ? unreadMessages : counts[tab.id];
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onSelect(tab.id)}
+              aria-current={active ? 'page' : undefined}
+              className={cx(
+                'shrink-0 flex items-center gap-2 h-9 px-2.5 rounded-xl border-2 text-xs font-bold font-doodle whitespace-nowrap cursor-pointer transition-all',
+                active
+                  ? 'bg-highlight text-ink border-ink shadow-doodle-sm'
+                  : 'bg-transparent text-fg border-transparent hover:bg-surface-3 hover:border-line',
+              )}
+            >
+              {tab.icon}
+              <span className="@3xl:flex-1 text-left">{tab.label}</span>
+              {tab.id === 'messages'
+                ? count
+                  ? <Badge tone="rose" aria-label={`${count} unread`}>{count}</Badge>
+                  : null
+                : typeof count === 'number' && (
+                    <span className={cx('text-2xs tabular-nums', active ? 'text-ink' : 'text-fg-muted')}>{count}</span>
+                  )}
+            </button>
+          );
+        })}
+      </nav>
 
-        <button
-          onClick={onLockSession}
-          className={`flex items-center justify-center gap-2 w-full px-3 py-2 rounded-xl border-2 border-[#2d2a26] transition cursor-pointer font-mono font-extrabold shadow-[2px_2px_0px_0px_#2d2a26] ${
-            isDark ? 'bg-rose-500/20 hover:bg-rose-950/40 text-rose-400' : 'bg-rose-100 hover:bg-rose-200 text-rose-800'
-          }`}
-        >
-          <LogOut className="w-3.5 h-3.5 text-rose-600" />
-          <span>Lock Session</span>
-        </button>
+      <div className="hidden @3xl:flex flex-col gap-2 p-3 border-t-2 border-dashed border-line">
+        <Button onClick={onSync} disabled={syncing} icon={syncing ? <ButtonSpinner /> : <IconRefresh className="w-3.5 h-3.5" />}>
+          Reload data
+        </Button>
+        <Button variant="danger" onClick={onSignOut} icon={<IconLogout className="w-3.5 h-3.5" />}>
+          Sign out
+        </Button>
       </div>
-    </div>
+    </aside>
   );
 }

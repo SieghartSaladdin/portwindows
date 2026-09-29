@@ -1,134 +1,86 @@
-# Windows 11 Pro Interactive Portfolio 🖥️
+# Aura OS
 
-A high-fidelity replica of the Windows 11 Pro desktop environment, built as an interactive developer portfolio website. This project combines desktop-grade windowing capabilities, modular app panels, a functional CLI terminal, and customizable display preferences inside a modern React application.
+A developer portfolio that looks and behaves like a small, hand-drawn desktop operating system. Visitors open "apps" in draggable windows to read the bio, browse projects, chat with an AI companion and send a message, while the owner manages all content from a built-in admin app (the Developer Hub) or from an AI assistant over MCP.
 
----
+## Features
 
-## ✨ Features
+- **Doodle desktop**: sketch-style UI with light and dark themes and four wallpapers (Lemon Paper, Sunset Rose, Mint Garden, Lilac Night). Windows can be dragged, minimised, maximised and focused; on phones they open full screen.
+- **Apps**: Bio (profile, work experience, education, certifications, avatar, CV download and a contact form), Projects (project folder with detail view and a Projector preview), Terminal, Settings, the Frieren.exe mini game and the Developer Hub.
+- **AI companion**: HelperBot answers questions about the owner using live data from the database (LangGraph tool calling) and can act on the desktop (open a window, change the wallpaper, open a link that exists in the portfolio data). Stark and Fern are chatty character companions. Works with any OpenAI-compatible endpoint (OpenRouter, a self-hosted router, Ollama).
+- **Developer Hub**: password-protected admin app to edit the profile, projects, skills, experience, education and certifications, reorder entries, upload images and a CV (PDF), and read contact messages.
+- **Contact form**: validated, rate-limited, with a honeypot field; messages land in the Developer Hub inbox.
+- **MCP server**: the same content can be read and edited from Claude Desktop, Cursor, Windsurf and other MCP clients, either through `/api/mcp` in the web app or a standalone server. See [README_MCP.md](README_MCP.md).
+- **SEO basics**: metadata, `robots.txt` and `sitemap.xml` built from `NEXT_PUBLIC_SITE_URL`.
 
-- **Draggable & Adjustable Windows**: Built using **Framer Motion**, applications can be dragged around the screen area, maximized to cover the workspace, minimized to the taskbar, and closed. Window stacking order (z-index) adjusts dynamically on focus.
-- **Glassmorphic & Mica Aesthetics**: Tailwind CSS v4 styling creates a premium desktop vibe with realistic backdrop blurs (`backdrop-blur-md`), subtle borders, translucent overlays, and dark-mode defaults.
-- **Interactive Command Prompt (Terminal)**: A fully operational terminal emulator supporting custom inputs. Users can type:
-  - `help` to see options
-  - `about` to print your biography
-  - `projects` to display a flat folder view of your github repos
-  - `skills` to list categorized tags
-  - `contact` to show your active emails and profile handles
-  - `neofetch` to draw a retro ASCII layout of your specs
-- **Personalized Settings (Theme Changer)**: Features a personalization tab where users can switch between 4 different desktop wallpapers (Default Blue, Crimson Dusk, Forest Glow, and Cyber Neon) that update the desktop styling instantly using a global state manager.
-- **File Explorer (Projects)**: A folder navigation directory showing quick access drives. Selecting a project card expands a metadata details panel displaying technology tags, descriptions, and direct links to GitHub or live sites.
-- **Taskbar & Start Menu**:
-  - Centered app icons showing open indicators (under-line pills) that track minimize, maximize, and active focus.
-  - Windows Start button which toggles the animated launcher start menu (featuring search filtering for pinned apps).
-  - Tray clock with live date/time formatting.
-- **Custom Right-Click Context Menu**: A customized, clamp-guarded right-click desktop menu allowing you to Refresh the desktop, open the Terminal, customize display settings, or arrange views.
+## Tech stack
 
----
+Next.js 16 (App Router), React 19, Tailwind CSS v4, Zustand, Framer Motion, Prisma 7 with PostgreSQL (`@prisma/adapter-pg`), LangChain / LangGraph, the MCP TypeScript SDK and Zod.
 
-## 🛠️ Technology Stack
+## Getting started
 
-- **Framework**: Next.js (App Router, ESModules, React 19)
-- **Styling**: Tailwind CSS v4
-- **Animation**: Framer Motion (for smooth window dragging, spring maximizers, and start menu slides)
-- **State Management**: Zustand (coordinates open/closed apps, layout indices, active focus, and wallpapers)
-- **Icons**: Lucide React (with custom inline SVG brand logos)
+Requirements: Node.js 20.12 or newer and a PostgreSQL 14+ database.
 
----
+1. Install dependencies: `npm install`
+2. Copy `.env.example` to `.env.local` and fill it in (see below).
+3. Create the tables: `npm run db:migrate`
+4. Optionally create the placeholder profile row: `npm run db:seed` (it never adds sample projects or people).
+5. Start the dev server: `npm run dev` and open http://localhost:3000.
+6. Open the Developer Hub on the desktop, sign in with `ADMIN_USERNAME` / `ADMIN_PASSWORD` and add your content.
 
-## 📂 Folder Architecture
+A fresh install shows honest empty states until you add content.
 
-```
-c:/laragon/www/webapp/portwindows/
-├── src/
-│   ├── app/
-│   │   ├── globals.css         # Glassmorphism utilities, scrollbars, base resets
-│   │   ├── layout.tsx          # Page metadata, viewport settings, Geist font loader
-│   │   └── page.tsx            # Desktop workspace mount point
-│   ├── components/
-│   │   ├── apps/               # Application-specific layouts
-│   │   │   ├── BioApp.tsx      # Notepad: Text editor bio viewer
-│   │   │   ├── ProjectsApp.tsx # File Explorer: Folder-grid project detailer
-│   │   │   ├── SettingsApp.tsx # Settings: Specs panel & Wallpaper selector
-│   │   │   └── TerminalApp.tsx # Command Prompt: Interactive console CLI
-│   │   ├── ui/                 # Reusable desktop interface items
-│   │   │   ├── AppIcon.tsx     # Desktop icons (selection highlight, double click)
-│   │   │   ├── ContextMenu.tsx # Right-click context actions
-│   │   │   └── WindowContainer.tsx # Drag handle & window frame manager
-│   │   ├── Desktop.tsx         # Central layout coordinate manager
-│   │   ├── Taskbar.tsx         # System clock, tray icons, open app indicators
-│   │   └── StartMenu.tsx       # Start launcher panel with pinned apps & search
-│   ├── hooks/
-│   │   ├── useContextMenu.ts   # Intercepts default context clicks & clamps coordinates
-│   │   └── useDateTime.ts      # Keeps taskbar clock synced with system time
-│   └── lib/
-│       ├── data.ts             # Centralized developer details (projects, bio, links)
-│       └── store.ts            # Zustand global state model
-```
+### Environment variables
 
----
+Required:
+- `DATABASE_URL`: PostgreSQL connection string.
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`: Developer Hub login. Login returns 503 until both are set.
+- `JWT_SECRET`: signs admin sessions. Required in production; in development a random secret is generated per process (sessions reset on restart).
 
-## 🚀 Setup & Local Execution
+For the AI companion:
+- `LLM_API_KEY` (or the legacy `OPENROUTER_API_KEY`): without a key the chat returns 503.
+- `LLM_PROVIDER` (default `openrouter`; `ollama` needs no key), `LLM_API_BASE_URL` (any OpenAI-compatible `/v1` endpoint), `LLM_MODEL`.
+- `OLLAMA_BASE_URL`, `OLLAMA_MODEL`: only when `LLM_PROVIDER=ollama`.
 
-Follow these steps to run the virtual environment locally:
+For MCP:
+- `MCP_API_KEY`: at least 16 random characters. `/api/mcp` answers 503 and `npm run mcp` refuses to start without it (the old example key is rejected).
+- `MCP_PORT`: port of the standalone server (default 3002).
 
-1. Clone or navigate to the directory:
-   ```bash
-   cd c:\laragon\www\webapp\portwindows
-   ```
-2. Install npm dependencies:
-   ```bash
-   npm install
-   ```
-3. Boot up the local development server:
-   ```bash
-   npm run dev
-   ```
-4. Open your browser and head to: **[http://localhost:3000](http://localhost:3000)**.
+Optional:
+- `NEXT_PUBLIC_SITE_URL`: public URL for metadata, robots and sitemap (inlined at build time).
+- `UPLOAD_DIR`: where uploaded files are stored (default `./uploads`, git-ignored).
 
----
+Generate secrets with `openssl rand -hex 32`.
 
-## 🐳 Docker Deployment
+## Scripts
 
-You can build, run, and publish this application inside a Docker container.
+- `npm run dev`, `npm run build`, `npm run start`: Next.js.
+- `npm run lint`, `npm run typecheck`: ESLint and TypeScript.
+- `npm test`: unit tests (Node test runner via tsx) for auth tokens, rate limiting, input validation and upload detection.
+- `npm run db:migrate`: apply Prisma migrations (`prisma migrate deploy`).
+- `npm run db:seed`: create the placeholder profile if none exists.
+- `npm run mcp` / `npm run mcp:stdio`: standalone MCP server over HTTP/SSE or stdio.
 
-### 1. Build the Docker Image
+## API overview
+
+All endpoints return JSON; errors look like `{ "error": "...", "details": { "field": "message" } }`. Admin endpoints need `Authorization: Bearer <token>` from `POST /api/auth`.
+
+- Public: `GET /api/portfolio`, `GET /api/profile`, `GET /api/{projects|skills|experiences|educations|certifications}`, `POST /api/contact`, `POST /api/chat`, `GET /api/uploads/<file>`.
+- Auth: `POST /api/auth` (rate-limited), `GET /api/auth/verify`.
+- Admin: `PUT /api/profile`; `POST /api/<collection>`, `PUT|DELETE /api/<collection>/<id>`; `POST /api/reorder`; `GET /api/messages`, `PATCH|DELETE /api/messages/<id>`; `POST /api/upload` (PNG, JPEG, WebP or GIF up to 5 MB; PDF up to 10 MB, checked by file signature).
+
+## Docker
+
+`docker-compose.yml` runs PostgreSQL and the app (image `rfieq/portwindows:latest`). It contains no default secrets:
+
+1. Create a `.env` file next to `docker-compose.yml` with at least `POSTGRES_PASSWORD`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET` and `MCP_API_KEY`, plus the `LLM_*` variables for the chat (or run `docker compose --env-file .env.local up -d`).
+2. `docker compose up -d`
+
+On start the container runs `prisma migrate deploy` (it never drops data) and then the Next.js server on port 3000. Uploads are kept in the `uploads_data` volume and the database in `postgres_data`.
+
+Upgrading a database that was created with the old `prisma db push` start command: mark the baseline migration as applied once, then start normally:
+
 ```bash
-docker build -t rfieq/portwindows:latest .
+docker compose run --rm portwindows node ./node_modules/prisma/build/index.js migrate resolve --applied 0_init
 ```
 
-### 2. Run the Container
-
-#### Option A: Using OpenRouter (Cloud LLM)
-```bash
-docker run -d -p 3000:3000 \
-  --name portwindows \
-  -e LLM_PROVIDER=openrouter \
-  -e OPENROUTER_API_KEY=your_openrouter_api_key_here \
-  rfieq/portwindows:latest
-```
-
-#### Option B: Using Ollama (Local LLM)
-```bash
-docker run -d -p 3000:3000 \
-  --name portwindows \
-  -e LLM_PROVIDER=ollama \
-  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
-  -e OLLAMA_MODEL=gemma2 \
-  rfieq/portwindows:latest
-```
-
-### 3. Push to Docker Hub
-```bash
-docker push rfieq/portwindows:latest
-```
-
----
-
-## ⚙️ Customization (Editing Portfolio Details)
-
-All information presented inside the portfolio is completely separated from the UI logic. To swap in your own biography, skills, projects, and social handles, open **[src/lib/data.ts](file:///c:/laragon/www/webapp/portwindows/src/lib/data.ts)** and edit the following structures:
-
-- **`PROFILE`**: Name, subtitle, location, email, and description biography.
-- **`PROJECTS`**: Array containing your title, detailed descriptions, skill tags, repository URLs, and live links.
-- **`SKILLS`**: Grouped categories (e.g., Frontend Core, Styling, Tooling) and tags.
-- **`DESKTOP_ICONS`**: Desktop icon layout arrangement (ordering text files, folders, CLI shortcuts, or external URLs).
+To build the image yourself: `docker build --build-arg NEXT_PUBLIC_SITE_URL=https://your.domain -t rfieq/portwindows:latest .`

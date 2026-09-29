@@ -1,80 +1,83 @@
-# Portfolio Model Context Protocol (MCP) Server 🖥️
+# Aura OS MCP server
 
-This repository includes a full-featured **Model Context Protocol (MCP) server** built with TypeScript & JSON-RPC (`@modelcontextprotocol/sdk`). It exposes your Admin Dashboard database (Profile, Projects, Skills, Experiences, and Dashboard Metrics) directly to local or remote AI assistants over **stdio**, **SSE**, or **Streamable HTTP**.
+Aura OS exposes its portfolio database through the [Model Context Protocol](https://modelcontextprotocol.io), so an AI assistant (Claude Desktop, Cursor, Windsurf, ...) can read and edit the same content as the Developer Hub.
 
----
+## Authentication
 
-## 🛠️ Complete CRUD Tools Available
+Every MCP endpoint requires `MCP_API_KEY`.
 
-The MCP server provides complete CRUD (Create, Read, Update, Delete) & Diagnostic capabilities across all entities:
+- Use a long random value (at least 16 characters), e.g. `openssl rand -hex 32`.
+- If the key is missing, too short, or still the old published example value, `/api/mcp` answers `503` and the standalone server refuses to start.
+- Send the key as `Authorization: Bearer <key>` (preferred) or `x-api-key: <key>`. An `?apiKey=<key>` query parameter is still accepted for clients that cannot set headers, but it can end up in logs, so avoid it where possible.
+- Keys are compared in constant time. The key is never printed in logs or responses.
 
-### 1. 📊 Dashboard Metrics
-- **`get_dashboard_stats`**: Get live system health, database status, and total count metrics (projects, skills, experiences, profile presence).
+## Endpoints
 
-### 2. 👤 Profile Management
-- **`get_profile`**: Retrieve developer profile information (name, title, location, email, bio, githubUrl, linkedinUrl).
-- **`update_profile`**: Update or create profile details.
+- **Inside the web app**: `POST /api/mcp` (stateless Streamable HTTP, JSON responses). Available wherever the Next.js app runs, including the Docker image.
+- **Standalone server** (`npm run mcp`, port `MCP_PORT`, default 3002):
+  - `POST /mcp`: stateless Streamable HTTP.
+  - `GET /sse` + `POST /messages?sessionId=...`: legacy SSE transport (for `mcp-remote`).
+  - `GET /` or `GET /health`: `{ "status": "ok" }`, the only unauthenticated path.
+- **stdio** (`npm run mcp:stdio`): for clients that spawn the server as a local process. No network port is opened, so no key check applies.
 
-### 3. 📂 Projects Repositories
-- **`list_projects`**: List all projects with optional query filtering and `featuredOnly` flag.
-- **`get_project`**: Retrieve single project details by unique ID or title.
-- **`create_project`**: Add a new project (title, description, tags, githubUrl, liveUrl, images, featured).
-- **`update_project`**: Edit any project attributes by ID.
-- **`delete_project`**: Permanently remove a project by ID.
+Each HTTP request (or SSE session) gets its own MCP server instance, so concurrent clients do not interfere with each other. Both `npm run mcp` scripts read `.env.local` for `DATABASE_URL` and `MCP_API_KEY`.
 
-### 4. ⚡ Skills Matrix
-- **`list_skills`**: List all skill categories and associated tags.
-- **`get_skill`**: Retrieve single skill category by ID or category name.
-- **`create_skill`**: Add a new skill category and tag list.
-- **`update_skill`**: Update category name or skill tags by ID.
-- **`delete_skill`**: Delete a skill category by ID.
+## Tools
 
-### 5. 💼 Work Experiences
-- **`list_experiences`**: List all timeline work experience entries.
-- **`get_experience`**: Retrieve single experience entry by ID, role, or company name.
-- **`create_experience`**: Add a new work experience entry.
-- **`update_experience`**: Edit work experience details by ID.
-- **`delete_experience`**: Delete a work experience entry by ID.
+Tool inputs are validated with the same rules as the REST API: required text fields must be non-empty, URL fields must be `http(s)` URLs or `/api/uploads/...` paths, and an empty string clears an optional field. New entries are appended at the end of the list unless `order` is given.
 
----
+- **Overview**: `get_dashboard_stats` (counts per collection, unread messages, profile status).
+- **Profile**: `get_profile`, `update_profile` (name, title, location, email, bio, phone, githubUrl, linkedinUrl, websiteUrl, avatarUrl, resumeUrl).
+- **Projects**: `list_projects`, `get_project`, `create_project`, `update_project`, `delete_project` (title, description, tags, githubUrl, liveUrl, images, featured, role, period, order).
+- **Skills**: `list_skills`, `create_skill`, `update_skill`, `delete_skill` (category, skills, order).
+- **Experience**: `list_experiences`, `create_experience`, `update_experience`, `delete_experience` (role, company, duration, description[], order).
+- **Education**: `list_educations`, `create_education`, `update_education`, `delete_education` (institution, degree, field, period, description, order).
+- **Certifications**: `list_certifications`, `create_certification`, `update_certification`, `delete_certification` (name, issuer, date, credentialUrl, order).
+- **Contact messages**: `list_messages` (optional `unreadOnly`, `limit`), `mark_message_read` (`id`, `read`).
 
-## 🚀 Running the MCP Server
+All `list_*` tools accept an optional `query` search term.
 
-Start the standalone MCP HTTP SSE Server on port `3002`:
+## Client configuration
 
-```bash
-npm run mcp
-```
-
-Or run in local **stdio** mode for desktop clients (Claude Desktop / Cursor local binary):
-
-```bash
-npm run mcp:stdio
-```
-
----
-
-## 🔌 Client Connection Options
-
-### 1. Remote Client (`mcp-remote` / JSON-RPC over SSE)
-To connect remote AI clients using `mcp-remote`, add this block to your client configuration:
+Streamable HTTP (clients that support remote servers with headers):
 
 ```json
 {
   "mcpServers": {
-    "portwindows-admin-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://<SERVER_IP>:3002/sse",
-        "--allow-http"
-      ]
+    "aura-os": {
+      "url": "https://your.domain/api/mcp",
+      "headers": { "Authorization": "Bearer <MCP_API_KEY>" }
     }
   }
 }
 ```
 
-### 2. In Cursor / Windsurf / Claude Desktop (SSE)
-- **URL**: `http://<SERVER_IP>:3002/sse` or `http://localhost:3000/api/mcp`
-- **Transport**: `SSE`
+Via `mcp-remote` (for clients that only speak stdio):
+
+```json
+{
+  "mcpServers": {
+    "aura-os": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://your.domain/api/mcp", "--header", "Authorization: Bearer ${MCP_API_KEY}"],
+      "env": { "MCP_API_KEY": "<your key>" }
+    }
+  }
+}
+```
+
+Local stdio (run from the project directory):
+
+```json
+{
+  "mcpServers": {
+    "aura-os": {
+      "command": "npm",
+      "args": ["run", "--silent", "mcp:stdio"],
+      "cwd": "/path/to/portwindows"
+    }
+  }
+}
+```
+
+For plain-HTTP servers on a LAN, add `--allow-http` to the `mcp-remote` arguments.

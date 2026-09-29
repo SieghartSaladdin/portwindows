@@ -1,203 +1,217 @@
 'use client';
 
 import React from 'react';
+import { Volume2, VolumeX, Sun, Moon, MessageSquare, LayoutGrid } from 'lucide-react';
 import { useOSStore } from '@/lib/store';
 import { useDateTime } from '@/hooks/useDateTime';
-import { 
-  Wifi, 
-  Volume2, 
-  Battery, 
-  MessageSquare,
-  Bell,
-  Tv
-} from 'lucide-react';
-import { 
-  DoodleHomeIcon,
-  DoodleSearchIcon,
-  DoodleWidgetsIcon,
-  DoodleBioIcon,
-  DoodleFolderIcon,
-  DoodleTerminalIcon,
-  DoodleSettingsIcon,
-  DoodlePetIcon,
-  DoodleAdminIcon
-} from '@/components/ui/DoodleIcons';
+import { APPS } from '@/hooks/appRegistry';
+import { cx } from '@/components/ui/primitives';
+import { DoodleHomeIcon, DoodleSearchIcon, DoodleWidgetsIcon } from '@/components/ui/DoodleIcons';
+
+const trayButton =
+  'shrink-0 inline-flex items-center justify-center gap-1.5 h-9 rounded-xl border-2 shadow-doodle-sm transition-all cursor-pointer font-doodle text-xs font-bold ' +
+  'active:translate-x-[1px] active:translate-y-[1px] active:shadow-doodle-xs';
+
+const idle = 'bg-surface text-fg border-line hover:bg-surface-3';
+const pressed = 'bg-highlight text-ink border-ink';
 
 export function Taskbar() {
-  const { 
-    windows, 
-    focusedWindowId, 
-    startMenuOpen, 
-    toggleStartMenu, 
-    openWindow, 
-    minimizeWindow, 
-    focusWindow,
-    setStartMenuSearchFocused,
-    toggleTaskView,
-    taskViewOpen,
-    isQuickSettingsOpen,
-    toggleQuickSettings,
-    isWidgetsOpen,
-    toggleWidgets,
-    themeMode
-  } = useOSStore();
+  const windows = useOSStore((s) => s.windows);
+  const focusedWindowId = useOSStore((s) => s.focusedWindowId);
+  const startMenuOpen = useOSStore((s) => s.startMenuOpen);
+  const taskViewOpen = useOSStore((s) => s.taskViewOpen);
+  const isQuickSettingsOpen = useOSStore((s) => s.isQuickSettingsOpen);
+  const isWidgetsOpen = useOSStore((s) => s.isWidgetsOpen);
+  const isNotificationCenterOpen = useOSStore((s) => s.isNotificationCenterOpen);
+  const unreadNotificationsCount = useOSStore((s) => s.unreadNotificationsCount);
+  const isChatInputOpen = useOSStore((s) => s.isChatInputOpen);
+  const themeMode = useOSStore((s) => s.themeMode);
+  const speechVolume = useOSStore((s) => s.frierenConfig.speechVolume);
 
-  const isDark = themeMode === 'dark';
   const { time, date, fullDate } = useDateTime();
 
-  const appIcons = [
-    { id: 'bio', title: 'Bio.txt', icon: <DoodleBioIcon className="w-5 h-5" /> },
-    { id: 'projects', title: 'Projects', icon: <DoodleFolderIcon className="w-5 h-5" /> },
-    { id: 'terminal', title: 'Aura Terminal', icon: <DoodleTerminalIcon className="w-5 h-5" /> },
-    { id: 'settings', title: 'Settings', icon: <DoodleSettingsIcon className="w-5 h-5" /> },
-    { id: 'frieren', title: 'Frieren.exe', icon: <DoodlePetIcon className="w-5 h-5" /> },
-    { id: 'admin', title: 'Developer Hub', icon: <DoodleAdminIcon className="w-5 h-5" /> },
-  ];
-
-  const handleAppClick = (id: string, title: string) => {
-    const w = windows[id];
-    if (!w || !w.isOpen) {
-      openWindow(id, title);
-    } else if (w.isMinimized) {
-      focusWindow(id);
-    } else if (focusedWindowId === id) {
-      minimizeWindow(id);
-    } else {
-      focusWindow(id);
-    }
+  const closePanels = () => {
+    const s = useOSStore.getState();
+    s.closeQuickSettings();
+    s.closeWidgets();
+    s.closeNotificationCenter();
   };
 
+  const handleAppClick = (id: string, title: string) => {
+    const s = useOSStore.getState();
+    const w = s.windows[id];
+    if (!w || !w.isOpen) s.openWindow(id, title);
+    else if (w.isMinimized) s.focusWindow(id);
+    else if (s.focusedWindowId === id) s.minimizeWindow(id);
+    else s.focusWindow(id);
+  };
+
+  // Launcher apps are always shown; other apps (e.g. the projector) appear while open.
+  const taskbarApps = APPS.filter((a) => a.launcher || windows[a.id]?.isOpen);
+  const isMuted = (speechVolume ?? 0) === 0;
+  const badge = unreadNotificationsCount > 9 ? '9+' : String(unreadNotificationsCount);
+
   return (
-    <div className={`fixed bottom-0 left-0 right-0 z-50 w-full h-13 min-h-[52px] border-t-[3px] border-[#2d2a26] shadow-[0px_-4px_0px_0px_#2d2a26] backdrop-blur-xl flex items-center justify-between px-4 select-none ${
-      isDark ? 'bg-[#262422]' : 'bg-[#fcf9f2]'
-    }`}>
-      
-      {/* Left indicators (e.g. Widgets / Weather) */}
-      <div className="hidden sm:flex items-center gap-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleWidgets();
-          }}
-          className={`flex items-center gap-2 px-3 py-1 rounded-xl border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] transition font-doodle text-xs cursor-pointer ${
-            isWidgetsOpen 
-              ? 'bg-[#fef08a] text-[#2d2a26]' 
-              : isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-slate-300' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
-          }`}
-          title="Widgets Board"
-        >
-          <DoodleWidgetsIcon className="w-4 h-4" />
-          <span className="font-doodle text-xs tracking-wide font-bold">Cloudy 68°F</span>
-        </button>
-      </div>
+    <nav
+      data-taskbar
+      aria-label="Taskbar"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      className="fixed bottom-0 inset-x-0 z-[9000] h-taskbar border-t-[2.5px] border-line bg-surface-2 text-fg flex items-center gap-2 px-2 sm:px-3 select-none font-doodle"
+    >
+      {/* Left: widgets */}
+      <button
+        type="button"
+        data-trigger="widgets"
+        onClick={() => useOSStore.getState().toggleWidgets()}
+        aria-label="Widgets"
+        aria-expanded={isWidgetsOpen}
+        title="Widgets"
+        className={cx(trayButton, 'w-9 lg:w-auto lg:px-3', isWidgetsOpen ? pressed : idle)}
+      >
+        <DoodleWidgetsIcon className="w-5 h-5" />
+        <span className="hidden lg:inline">Widgets</span>
+      </button>
 
-      {/* Centered Taskbar Controls & Apps */}
-      <div className="flex items-center gap-2 mx-auto">
-        {/* Doodle Home Start Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleStartMenu();
-          }}
-          className={`win-start-btn flex items-center justify-center w-10 h-10 rounded-xl border-[2.5px] border-[#2d2a26] transition-all duration-200 cursor-pointer ${
-            startMenuOpen 
-              ? 'bg-[#fef08a] shadow-[2px_2px_0px_0px_#2d2a26] scale-95' 
-              : isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 shadow-[3px_3px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] hover:bg-[#f5efe2] shadow-[3px_3px_0px_0px_#2d2a26]'
-          }`}
-          title="Start Menu"
-        >
-          <DoodleHomeIcon className="w-6 h-6" />
-        </button>
+      {/* Center: start, search, task view, apps (scrolls horizontally on small screens) */}
+      <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-2 w-max mx-auto py-1 px-0.5">
+          <button
+            type="button"
+            data-trigger="start"
+            onClick={() => {
+              closePanels();
+              useOSStore.getState().toggleStartMenu();
+            }}
+            aria-label="Start"
+            aria-expanded={startMenuOpen}
+            aria-haspopup="menu"
+            title="Start"
+            className={cx(trayButton, 'w-10 h-10 border-[2.5px]', startMenuOpen ? pressed : idle)}
+          >
+            <DoodleHomeIcon className="w-6 h-6" />
+          </button>
 
-        {/* Search Shortcut */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!startMenuOpen) {
-              toggleStartMenu();
-            }
-            setStartMenuSearchFocused(true);
-          }}
-          className={`win-search-btn flex items-center justify-center w-9 h-9 rounded-xl border-[2px] border-[#2d2a26] transition shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer ${
-            isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-amber-300' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
-          }`}
-          title="Search"
-        >
-          <DoodleSearchIcon className="w-5 h-5" />
-        </button>
+          <button
+            type="button"
+            data-trigger="start"
+            onClick={() => {
+              const s = useOSStore.getState();
+              closePanels();
+              if (!s.startMenuOpen) s.toggleStartMenu();
+              s.setStartMenuSearchFocused(true);
+            }}
+            aria-label="Search apps, projects and skills"
+            title="Search"
+            className={cx(trayButton, 'w-9', idle)}
+          >
+            <DoodleSearchIcon className="w-5 h-5" />
+          </button>
 
-        {/* Sketchy divider */}
-        <div className="w-[2px] h-6 border-r-2 border-dashed border-[#2d2a26]/60 mx-1"></div>
+          <button
+            type="button"
+            data-trigger="task-view"
+            onClick={() => {
+              const s = useOSStore.getState();
+              closePanels();
+              s.closeStartMenu();
+              s.toggleTaskView();
+            }}
+            aria-label="Task view"
+            aria-pressed={taskViewOpen}
+            title="Task view"
+            className={cx(trayButton, 'w-9', taskViewOpen ? pressed : idle)}
+          >
+            <LayoutGrid className="w-4 h-4" aria-hidden />
+          </button>
 
-        {/* Taskbar Apps with Doodle Badges */}
-        {appIcons.map((app) => {
-          const wState = windows[app.id];
-          const isOpen = wState?.isOpen;
-          const isFocused = focusedWindowId === app.id && isOpen && !wState.isMinimized;
+          <span aria-hidden className="w-0 h-6 border-r-2 border-dashed border-line/60 mx-0.5 shrink-0" />
 
-          return (
-            <div key={app.id} className="relative flex items-center group">
+          {taskbarApps.map((app) => {
+            const w = windows[app.id];
+            const isOpen = !!w?.isOpen;
+            const isFocused = isOpen && !w.isMinimized && focusedWindowId === app.id;
+            const Glyph = app.Icon;
+            return (
               <button
+                key={app.id}
+                type="button"
                 onClick={() => handleAppClick(app.id, app.title)}
-                className={`
-                  flex items-center gap-1.5 px-2.5 py-1 rounded-xl border-[2px] border-[#2d2a26] transition-all duration-200 font-doodle text-xs cursor-pointer
-                  ${isFocused 
-                    ? 'bg-[#bae6fd] text-[#2d2a26] font-extrabold shadow-[2.5px_2.5px_0px_0px_#2d2a26]' 
-                    : isOpen 
-                      ? 'bg-[#dcfce7] text-[#2d2a26] font-bold shadow-[2px_2px_0px_0px_#2d2a26]' 
-                      : isDark ? 'bg-zinc-900/80 hover:bg-zinc-800 text-slate-300 shadow-[2px_2px_0px_0px_#2d2a26]' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]'
-                  }
-                `}
+                aria-label={isOpen ? `${app.title}${isFocused ? ' (active)' : w.isMinimized ? ' (minimized)' : ' (open)'}` : `Open ${app.title}`}
+                aria-pressed={isFocused}
                 title={app.title}
+                className={cx(
+                  trayButton,
+                  'px-2',
+                  isFocused ? 'bg-sky text-ink border-ink' : isOpen ? 'bg-mint text-ink border-ink' : idle,
+                )}
               >
-                <div className="transform active:scale-90 transition-transform">
-                  {app.icon}
-                </div>
-                {isOpen && (
-                  <span className="hidden md:inline-block font-doodle text-xs truncate max-w-[80px]">
-                    {app.title}
-                  </span>
-                )}
-                {isOpen && (
-                  <span className={`w-1.5 h-1.5 rounded-full ${isFocused ? 'bg-sky-600 animate-pulse' : 'bg-emerald-600'}`} />
-                )}
+                <Glyph className="w-5 h-5" />
+                {isOpen && <span className="hidden md:inline truncate max-w-[88px]">{app.title}</span>}
+                {isOpen && <span aria-hidden className={cx('w-1.5 h-1.5 rounded-full bg-ink', isFocused && 'motion-safe:animate-pulse')} />}
               </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Right Tray: System Controls & Sketchy Clock Badge */}
-      <div className="flex items-center gap-2">
-        {/* Quick Settings */}
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleQuickSettings();
-          }}
-          className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border-[2px] border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] transition cursor-pointer ${
-            isQuickSettingsOpen 
-              ? 'bg-[#fef08a] text-[#2d2a26]' 
-              : isDark ? 'text-slate-300 hover:text-white bg-zinc-900/80' : 'text-[#2d2a26] bg-[#fffdfa] hover:bg-[#f5efe2]'
-          }`}
-          title="Network, Volume, and Battery"
-        >
-          <Wifi className="w-3.5 h-3.5 text-sky-500" />
-          <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
-          <Battery className="w-3.5 h-3.5 text-amber-500" />
-        </button>
-
-        {/* Clock Sketchy Doodle Badge */}
+      {/* Right tray */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <button
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border-[2px] border-[#2d2a26] transition font-doodle shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer ${
-            isDark ? 'bg-zinc-900/90 hover:bg-zinc-800 text-slate-200' : 'bg-[#fffdfa] hover:bg-[#f5efe2] text-[#2d2a26]'
-          }`}
-          title={fullDate}
+          type="button"
+          onClick={() => {
+            const s = useOSStore.getState();
+            closePanels();
+            s.closeStartMenu();
+            if (s.isChatInputOpen && s.activeChatPartner === 'robot') {
+              s.setIsChatInputOpen(false);
+            } else {
+              s.setActiveChatPartner('robot');
+              s.setIsChatInputOpen(true);
+            }
+          }}
+          aria-label="Chat with HelperBot"
+          aria-pressed={isChatInputOpen}
+          title="Chat with HelperBot"
+          className={cx(trayButton, 'w-9', isChatInputOpen ? pressed : idle)}
         >
-          <span className={`font-doodle text-xs font-bold ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>{time || '12:00 PM'}</span>
-          <span className={`hidden sm:inline font-doodle text-xs border-l border-dashed border-[#2d2a26] pl-1.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>{date || '6/11/2026'}</span>
+          <MessageSquare className="w-4 h-4" aria-hidden />
+        </button>
+
+        <button
+          type="button"
+          data-trigger="quick-settings"
+          onClick={() => useOSStore.getState().toggleQuickSettings()}
+          aria-label="Quick settings"
+          aria-expanded={isQuickSettingsOpen}
+          title="Quick settings"
+          className={cx(trayButton, 'px-2.5', isQuickSettingsOpen ? pressed : idle)}
+        >
+          {themeMode === 'dark' ? <Moon className="w-4 h-4" aria-hidden /> : <Sun className="w-4 h-4" aria-hidden />}
+          {isMuted ? <VolumeX className="w-4 h-4" aria-hidden /> : <Volume2 className="w-4 h-4" aria-hidden />}
+        </button>
+
+        <button
+          type="button"
+          data-trigger="notifications"
+          onClick={() => useOSStore.getState().toggleNotificationCenter()}
+          aria-label={`${fullDate || 'Clock'}. Notifications${unreadNotificationsCount ? `: ${unreadNotificationsCount} unread` : ''}`}
+          aria-expanded={isNotificationCenterOpen}
+          title={fullDate}
+          className={cx(trayButton, 'relative px-2.5', isNotificationCenterOpen ? pressed : idle)}
+        >
+          <span className="tabular-nums">{time || ' '}</span>
+          {date && <span className="hidden sm:inline border-l-2 border-dashed border-current/40 pl-1.5 font-normal">{date}</span>}
+          {unreadNotificationsCount > 0 && (
+            <span aria-hidden className="absolute -top-2 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full border-2 border-ink bg-rose text-ink text-3xs font-bold flex items-center justify-center">
+              {badge}
+            </span>
+          )}
         </button>
       </div>
-    </div>
+    </nav>
   );
 }
+

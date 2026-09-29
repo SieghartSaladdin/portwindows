@@ -11,19 +11,31 @@ import {
   PET_FLOOR_HEIGHT,
 } from '@/lib/petSprite';
 
+type Facing = 'up' | 'down' | 'left' | 'right';
+
+const KEY_DIRECTIONS: Record<string, Facing> = {
+  w: 'up',
+  arrowup: 'up',
+  s: 'down',
+  arrowdown: 'down',
+  a: 'left',
+  arrowleft: 'left',
+  d: 'right',
+  arrowright: 'right',
+};
+
 export function FrierenPet() {
   const { 
     frierenConfig, 
-    updateFrierenConfig, 
     frierenSpeech, 
     setFrierenSpeech,
     activeChatPartner
   } = useOSStore();
-  const { isSpawned, scale, speed, speechVolume } = frierenConfig;
+  const { isSpawned, scale, speed } = frierenConfig;
 
   // Sprite animation states
   const [position, setPosition] = useState({ x: 300, y: 200 });
-  const [direction, setDirection] = useState<'up' | 'down' | 'left' | 'right'>('down');
+  const [direction, setDirection] = useState<Facing>('down');
   const [isWalking, setIsWalking] = useState(false);
   const [frame, setFrame] = useState(0);
   const [transparentImg, setTransparentImg] = useState<string | null>(null);
@@ -34,8 +46,9 @@ export function FrierenPet() {
 
   // References for keyboard state tracking
   const pressedKeys = useRef<Set<string>>(new Set());
+  // Held movement keys in press order; the most recent one decides which way Frieren faces
+  const keyOrder = useRef<string[]>([]);
   const animationFrameRef = useRef<number | null>(null);
-  const lastUpdateTimeRef = useRef<number>(0);
 
   const directionRef = useRef(direction);
   const speedRef = useRef(speed);
@@ -119,6 +132,7 @@ export function FrierenPet() {
   // Center Frieren on initial spawn
   useEffect(() => {
     if (isSpawned && typeof window !== 'undefined') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setPosition({
         x: window.innerWidth / 2 - scale / 2,
         y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
@@ -147,6 +161,7 @@ export function FrierenPet() {
   // 2. Sprite walking frame loops (runs at ~8Hz when walking)
   useEffect(() => {
     if (!isSpawned || !isWalking) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setFrame(0);
       return;
     }
@@ -185,8 +200,12 @@ export function FrierenPet() {
       }
 
       const key = e.key.toLowerCase();
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowleft', 'arrowdown', 'arrowright'].includes(key)) {
-        pressedKeys.current.add(key);
+      if (key in KEY_DIRECTIONS) {
+        if (key.startsWith('arrow')) e.preventDefault();
+        if (!pressedKeys.current.has(key)) {
+          pressedKeys.current.add(key);
+          keyOrder.current = [...keyOrder.current.filter((k) => k !== key), key];
+        }
         setIsWalking(true);
       }
     };
@@ -194,43 +213,40 @@ export function FrierenPet() {
     const handleKeyUp = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       pressedKeys.current.delete(key);
-      
-      if (pressedKeys.current.size === 0) {
-        setIsWalking(false);
-      }
+      keyOrder.current = keyOrder.current.filter((k) => k !== key);
+      if (pressedKeys.current.size === 0) setIsWalking(false);
+    };
+
+    // Keyup never arrives if focus leaves the page mid-walk; drop every held key so she stops
+    const releaseAll = () => {
+      pressedKeys.current.clear();
+      keyOrder.current = [];
+      setIsWalking(false);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', releaseAll);
 
     // Movement Tick Loop via requestAnimationFrame
-    const tick = (timestamp: number) => {
+    const tick = () => {
       if (pressedKeys.current.size > 0) {
+        // Frieren walks along the taskbar: A/D move her, W/S only turn her (up = back, down = front)
         let dx = 0;
-        let newDir = directionRef.current;
-
-        // Calculate movements and directions based on keys pressed
-        if (pressedKeys.current.has('w') || pressedKeys.current.has('arrowup')) {
-          newDir = 'up';
-        }
-        if (pressedKeys.current.has('s') || pressedKeys.current.has('arrowdown')) {
-          newDir = 'down';
-        }
-        if (pressedKeys.current.has('a') || pressedKeys.current.has('arrowleft')) {
-          dx = -1;
-          newDir = 'left';
-        }
-        if (pressedKeys.current.has('d') || pressedKeys.current.has('arrowright')) {
-          dx = 1;
-          newDir = 'right';
+        for (const key of pressedKeys.current) {
+          const dir = KEY_DIRECTIONS[key];
+          if (dir === 'left') dx -= 1;
+          if (dir === 'right') dx += 1;
         }
 
-        // Set direction state
+        // Always face the most recently pressed key, so W/S turn her even while walking sideways
+        const lastKey = keyOrder.current[keyOrder.current.length - 1];
+        const newDir = lastKey ? KEY_DIRECTIONS[lastKey] : directionRef.current;
         if (newDir !== directionRef.current) {
+          directionRef.current = newDir;
           setDirection(newDir);
         }
 
-        // Apply movement vector
         if (dx !== 0) {
           const moveX = dx * speedRef.current;
 
@@ -256,6 +272,7 @@ export function FrierenPet() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', releaseAll);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -274,13 +291,13 @@ export function FrierenPet() {
       if (frierenEl && partnerEl) {
         const r1 = frierenEl.getBoundingClientRect();
         const r2 = partnerEl.getBoundingClientRect();
-        const c1x = r1.left + r1.width / 2;
-        const c2x = r2.left + r2.width / 2;
-        
-        if (c1x < c2x) {
-          setDirection('right');
+        const dx = r2.left + r2.width / 2 - (r1.left + r1.width / 2);
+        const dy = r2.top + r2.height / 2 - (r1.top + r1.height / 2);
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          setDirection(dx > 0 ? 'right' : 'left');
         } else {
-          setDirection('left');
+          setDirection(dy > 0 ? 'down' : 'up');
         }
       }
     };
@@ -293,6 +310,7 @@ export function FrierenPet() {
   // 5. Silent Typewriter Speech Bubble & Mouth Animation
   useEffect(() => {
     if (!frierenSpeech) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setDisplayedSpeech('');
       setIsMouthOpen(false);
       return;
@@ -318,7 +336,8 @@ export function FrierenPet() {
       
       if (charsToShow > lastCharsCount) {
         if (charsToShow % 2 === 0) {
-          playTextBlip('frieren', speechVolume);
+          // Read the live volume so changes in Settings apply immediately
+          playTextBlip('frieren', useOSStore.getState().frierenConfig.speechVolume);
         }
         lastCharsCount = charsToShow;
       }
@@ -386,7 +405,7 @@ export function FrierenPet() {
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         width: containerWidth,
         height: scale,
-        zIndex: 5, // Sits in front of wallpaper, behind active windows
+        zIndex: 40, // Above desktop icons (10), below windows (100+)
         pointerEvents: 'none', // Clicking "through" Frieren makes desktop shortcuts accessible
       }}
       className="relative flex items-center justify-center"
@@ -399,15 +418,16 @@ export function FrierenPet() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-[#fcf9f2] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] rounded-2xl text-xs w-max max-w-[380px] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
+            role="status"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-surface-2 text-fg border-[2.5px] border-line shadow-doodle-md rounded-2xl text-xs w-max max-w-[min(380px,calc(100vw-2rem))] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
             style={{ 
               imageRendering: 'auto',
             }}
           >
             {displayedSpeech}
             {/* Doodle speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-[#2d2a26]" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-[#fcf9f2] -mt-[1px]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-line" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-surface-2 -mt-[1px]" />
           </motion.div>
         )}
       </AnimatePresence>

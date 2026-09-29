@@ -1,97 +1,94 @@
 'use client';
 
-import React from 'react';
-import { ShieldAlert } from 'lucide-react';
-
-const DoodleLockSVG = () => (
-  <svg className="w-8 h-8 text-[#2d2a26]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-  </svg>
-);
+import React, { useId, useState } from 'react';
+import { Button, Card, Field, Input } from '@/components/ui/primitives';
+import { ButtonSpinner, FormError } from './AdminShared';
+import { DoodleLockIcon } from './AdminIcons';
 
 interface AdminLoginProps {
-  isDark: boolean;
-  username: string;
-  setUsername: (val: string) => void;
-  password: string;
-  setPassword: (val: string) => void;
-  loginError: string | null;
-  loading: boolean;
-  onLoginSubmit: (e: React.FormEvent) => void;
+  /** Shown above the form, e.g. after an expired session. */
+  notice?: string | null;
+  onLoggedIn: (token: string) => void;
 }
 
-export function AdminLogin({
-  isDark,
-  username,
-  setUsername,
-  password,
-  setPassword,
-  loginError,
-  loading,
-  onLoginSubmit
-}: AdminLoginProps) {
+export function AdminLogin({ notice, onLoggedIn }: AdminLoginProps) {
+  const uid = useId();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !password) {
+      setError('Enter your username and password.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data: { token?: string; error?: string } = await res.json().catch(() => ({}));
+      if (!res.ok || !data.token) {
+        if (res.status === 429) throw new Error(data.error || 'Too many sign-in attempts. Please wait a moment and try again.');
+        if (res.status === 401) throw new Error(data.error || 'Incorrect username or password.');
+        throw new Error(data.error || 'Sign-in failed. Please try again.');
+      }
+      setPassword('');
+      onLoggedIn(data.token);
+    } catch (err) {
+      setError(err instanceof TypeError ? 'Network error. Check your connection and try again.' : (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className={`flex flex-col items-center justify-center h-full p-6 font-mono select-none ${
-      isDark ? 'bg-[#18181b] text-slate-100' : 'bg-[#fdfbf7] text-[#2d2a26]'
-    }`}>
-      <div className={`w-full max-w-sm flex flex-col items-center gap-6 p-6 border-[2.5px] border-[#2d2a26] rounded-2xl shadow-[4px_4px_0px_0px_#2d2a26] ${
-        isDark ? 'bg-zinc-900/90 text-slate-100' : 'bg-[#fcf9f2] text-[#2d2a26]'
-      }`}>
+    <div className="flex h-full items-center justify-center p-4 bg-surface text-fg font-doodle overflow-y-auto">
+      <Card shadow="md" className="w-full max-w-sm p-6 flex flex-col gap-5">
         <div className="flex flex-col items-center text-center gap-2">
-          <div className="w-16 h-16 rounded-2xl bg-[#fef08a] border-2 border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] flex items-center justify-center text-[#2d2a26] mb-1">
-            <DoodleLockSVG />
-          </div>
-          <h2 className="text-xl font-extrabold tracking-wide text-amber-900 flex items-center gap-2">
-            <span>✏</span> Administrator Access
-          </h2>
-          <p className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Enter credentials configured in system .env</p>
+          <span className="w-16 h-16 rounded-2xl border-2 border-ink bg-highlight shadow-doodle-sm flex items-center justify-center">
+            <DoodleLockIcon className="w-9 h-9" />
+          </span>
+          <h2 className="text-lg font-bold">Developer Hub</h2>
+          <p className="text-xs text-fg-muted">Sign in with the admin credentials configured on the server.</p>
         </div>
 
-        <form onSubmit={onLoginSubmit} className="w-full flex flex-col gap-4 font-mono">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] text-amber-900 font-extrabold uppercase">Username</label>
-            <input
-              type="text"
-              placeholder="Username"
+        {notice && !error && (
+          <div role="status" className="rounded-xl border-2 border-ink bg-peach text-ink px-3 py-2 text-xs font-bold">
+            {notice}
+          </div>
+        )}
+
+        <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+          <FormError message={error} />
+          <Field label="Username" htmlFor={`${uid}-user`} required>
+            <Input
+              id={`${uid}-user`}
+              autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className={`px-3 py-2 border-2 border-[#2d2a26] rounded-xl font-mono text-xs focus:outline-none focus:border-[#fef08a] shadow-[2px_2px_0px_0px_#2d2a26] ${
-                isDark ? 'bg-zinc-950 text-white' : 'bg-[#fffdfa] text-[#2d2a26]'
-              }`}
-              required
+              autoFocus
             />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] text-amber-900 font-extrabold uppercase">Password</label>
-            <input
+          </Field>
+          <Field label="Password" htmlFor={`${uid}-pass`} required>
+            <Input
+              id={`${uid}-pass`}
               type="password"
-              placeholder="Password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`px-3 py-2 border-2 border-[#2d2a26] rounded-xl font-mono text-xs focus:outline-none focus:border-[#fef08a] shadow-[2px_2px_0px_0px_#2d2a26] ${
-                isDark ? 'bg-zinc-950 text-white' : 'bg-[#fffdfa] text-[#2d2a26]'
-              }`}
-              required
             />
-          </div>
-
-          {loginError && (
-            <span className="text-xs text-rose-400 font-bold animate-pulse flex items-center gap-1">
-              <ShieldAlert className="w-3.5 h-3.5" /> {loginError}
-            </span>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-2 py-2.5 w-full rounded-xl bg-[#fef08a] hover:bg-yellow-300 border-2 border-[#2d2a26] text-[#2d2a26] text-xs font-extrabold shadow-[2px_2px_0px_0px_#2d2a26] transition disabled:opacity-50 cursor-pointer text-center"
-          >
-            {loading ? 'Authenticating...' : 'Sign In'}
-          </button>
+          </Field>
+          <Button type="submit" variant="primary" size="lg" disabled={loading} icon={loading ? <ButtonSpinner /> : undefined} className="w-full mt-1">
+            {loading ? 'Signing in…' : 'Sign in'}
+          </Button>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

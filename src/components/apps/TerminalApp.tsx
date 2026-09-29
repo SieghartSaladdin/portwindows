@@ -1,344 +1,546 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
+import { CornerDownLeft } from 'lucide-react';
 import { useOSStore } from '@/lib/store';
 import { sendChatMessage } from '@/lib/chat';
-import { Terminal, Send } from 'lucide-react';
+import { OS_VERSION, WALLPAPERS } from '@/lib/data';
+import type { Project } from '@/lib/types';
+import { IconButton, cx } from '@/components/ui/primitives';
+import { safeHref } from './bio/links';
+import { readClientInfo } from './settings/clientInfo';
+import { requestProjectDetail } from './projects/navigation';
+
+type LineType = 'input' | 'output' | 'error' | 'success' | 'muted';
 
 interface ConsoleLine {
+  id: number;
   text: string;
-  type: 'input' | 'output' | 'error' | 'success';
+  type: LineType;
+  /** Renders the text as a link */
+  href?: string;
 }
 
-const COMMAND_LIST = ['help', 'about', 'projects', 'skills', 'contact', 'clear', 'neofetch', 'view', 'open', 'theme', 'wallpaper', 'date', 'lock'];
+type NewLine = Omit<ConsoleLine, 'id'>;
+
+interface CommandDef {
+  name: string;
+  aliases?: string[];
+  usage?: string;
+  description: string;
+}
+
+/** Single source of truth for `help`, dispatch and Tab completion. */
+const COMMANDS: CommandDef[] = [
+  { name: 'help', description: 'Show this list of commands' },
+  { name: 'about', aliases: ['bio', 'whoami'], description: 'Who built this place' },
+  { name: 'projects', aliases: ['ls'], description: 'List projects with their numbers' },
+  { name: 'view', usage: 'view <#|name>', description: 'Open a project in the Projects explorer' },
+  { name: 'explain', usage: 'explain <#|name>', description: 'Ask the helper robot to summarise a project' },
+  { name: 'skills', description: 'Tech stack, grouped' },
+  { name: 'experience', aliases: ['work'], description: 'Work history' },
+  { name: 'education', description: 'Schools and degrees' },
+  { name: 'certs', aliases: ['certifications'], description: 'Certifications and credentials' },
+  { name: 'contact', description: 'How to get in touch' },
+  { name: 'neofetch', description: 'System info, with ASCII art' },
+  { name: 'open', usage: 'open <app>', description: 'Launch an app (see "open" for the list)' },
+  { name: 'theme', usage: 'theme <light|dark>', description: 'Switch the colour theme' },
+  { name: 'wallpaper', usage: 'wallpaper [1-4|id]', description: 'List or change the wallpaper' },
+  { name: 'date', description: 'Current date and time' },
+  { name: 'history', description: 'Commands you typed this session' },
+  { name: 'lock', description: 'Lock the screen' },
+  { name: 'clear', aliases: ['cls'], description: 'Clear the screen (or Ctrl+L)' },
+];
+
+const COMMAND_NAMES = COMMANDS.flatMap((c) => [c.name, ...(c.aliases || [])]);
+
+function resolveCommand(input: string): string | null {
+  const found = COMMANDS.find((c) => c.name === input || c.aliases?.includes(input));
+  return found ? found.name : null;
+}
+
+const APPS: Record<string, { id: string; title: string }> = {
+  bio: { id: 'bio', title: 'Bio.txt' },
+  about: { id: 'bio', title: 'Bio.txt' },
+  projects: { id: 'projects', title: 'Projects' },
+  settings: { id: 'settings', title: 'Settings' },
+  frieren: { id: 'frieren', title: 'Frieren.exe' },
+  projector: { id: 'projector', title: 'Projector Screen' },
+  terminal: { id: 'terminal', title: 'Aura Terminal' },
+  admin: { id: 'admin', title: 'Developer Hub' },
+};
+const APP_NAMES = ['bio', 'projects', 'settings', 'frieren', 'projector', 'terminal', 'admin', 'widgets'];
+
+const ART = [
+  '     ______________',
+  '    /             /|',
+  '   /  aura  os   / |',
+  '  /_____________/  |',
+  '  |  ~  ~  ~   |   |',
+  '  |  ~~~~~~~   |  /',
+  '  |____________|/',
+];
+
+const PROMPT = 'visitor@aura-os:~$';
+const MAX_LINES = 600;
+
+let lineSeq = 0;
+const mk = (lines: NewLine[]): ConsoleLine[] => lines.map((l) => ({ ...l, id: ++lineSeq }));
+
+const WELCOME: NewLine[] = [
+  { text: `Aura OS terminal · version ${OS_VERSION}`, type: 'output' },
+  { text: 'Type "help" to see what I understand. Tab completes, ↑/↓ browses history.', type: 'muted' },
+  { text: '', type: 'output' },
+];
+
+function findProject(projects: Project[], arg: string): Project | undefined {
+  const n = Number(arg);
+  if (Number.isInteger(n) && n >= 1 && n <= projects.length) return projects[n - 1];
+  const needle = arg.toLowerCase().replace(/\s+/g, '');
+  if (!needle) return undefined;
+  return (
+    projects.find((p) => p.title.toLowerCase().replace(/\s+/g, '') === needle) ||
+    projects.find((p) => p.title.toLowerCase().replace(/\s+/g, '').includes(needle))
+  );
+}
+
+/** Only shorten genuinely long text, at a word boundary. */
+function shorten(text: string, max = 140) {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 60 ? cut.lastIndexOf(' ') : max)}…`;
+}
+
+function commonPrefix(words: string[]) {
+  if (words.length === 0) return '';
+  let prefix = words[0];
+  for (const w of words.slice(1)) {
+    while (!w.startsWith(prefix)) prefix = prefix.slice(0, -1);
+  }
+  return prefix;
+}
 
 export function TerminalApp() {
-  const { 
-    profile, 
-    projects, 
-    skills, 
-    openWindow, 
-    setSelectedProjectId,
-    setIsWidgetsOpen,
-    setIsLocked,
-    setWallpaper,
-    wallpaper,
-    themeMode
-  } = useOSStore();
-  
-  const isDark = themeMode === 'dark';
+  const [lines, setLines] = React.useState<ConsoleLine[]>(() => mk(WELCOME));
+  const [input, setInput] = React.useState('');
+  const [cmdHistory, setCmdHistory] = React.useState<string[]>([]);
+  const [historyIdx, setHistoryIdx] = React.useState(-1);
+  const draft = React.useRef('');
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const mountedAt = React.useRef<number | null>(null);
 
-  const [history, setHistory] = useState<ConsoleLine[]>([
-    { text: '✏ Doodle Shell [Notebook Terminal Core v1.0.0]', type: 'output' },
-    { text: '(c) Aura Workspace Solutions. Hand-crafted doodle edition.', type: 'output' },
-    { text: '', type: 'output' },
-    { text: 'Type "help" to view all available notebook CLI commands.', type: 'success' },
-    { text: '', type: 'output' },
-  ]);
-  const [inputVal, setInputVal] = useState('');
-  
-  const [cmdHistory, setCmdHistory] = useState<string[]>([]);
-  const [historyIdx, setHistoryIdx] = useState(-1);
-  const tempInput = useRef('');
+  React.useEffect(() => {
+    mountedAt.current = Date.now();
+  }, []);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' });
+  }, [lines]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [history]);
+  const append = React.useCallback((newLines: NewLine[]) => {
+    setLines((prev) => [...prev, ...mk(newLines)].slice(-MAX_LINES));
+  }, []);
 
-  const focusInput = () => {
-    inputRef.current?.focus();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (cmdHistory.length === 0) return;
-      if (historyIdx === -1) tempInput.current = inputVal;
-      const nextIdx = historyIdx + 1 < cmdHistory.length ? historyIdx + 1 : historyIdx;
-      setHistoryIdx(nextIdx);
-      setInputVal(cmdHistory[cmdHistory.length - 1 - nextIdx]);
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIdx === -1) return;
-      const nextIdx = historyIdx - 1;
-      setHistoryIdx(nextIdx);
-      if (nextIdx === -1) {
-        setInputVal(tempInput.current);
-      } else {
-        setInputVal(cmdHistory[cmdHistory.length - 1 - nextIdx]);
-      }
-    }
-  };
-
-  const triggerAIExplanation = async (project: any) => {
+  const explainProject = async (project: Project) => {
+    const lang = typeof navigator !== 'undefined' ? navigator.language : 'en';
+    const prompt =
+      `Give a short, two-paragraph executive summary of the portfolio project "${project.title}"` +
+      (project.tags.length ? ` (tech: ${project.tags.join(', ')})` : '') +
+      `. Description: ${project.description || 'none provided'}. ` +
+      `Reply in the visitor's language (their browser reports "${lang}"); if unsure, reply in English. ` +
+      `Do not invent facts that are not in the description.`;
     try {
-      const response = await sendChatMessage(
-        `Berikan ringkasan eksekutif singkat 2 paragraf mengenai proyek "${project.title}" (Tech: ${project.tags.join(', ')}). Deskripsi: ${project.description}`,
-        'robot'
-      );
-      setHistory(prev => [
-        ...prev,
-        { text: `\n🤖 [ROBOT ASSISTANT REVIEW - ${project.title.toUpperCase()}]:`, type: 'success' },
-        { text: response, type: 'output' },
-        { text: '', type: 'output' }
+      const reply = await sendChatMessage(prompt, 'robot');
+      append([
+        { text: `Helper robot on "${project.title}":`, type: 'success' },
+        { text: reply || '(no answer)', type: 'output' },
+        { text: '', type: 'output' },
       ]);
-    } catch (error) {
-      setHistory(prev => [
-        ...prev,
-        { text: `🤖 [ROBOT ASSISTANT]: AI service temporarily unavailable.`, type: 'error' }
+    } catch {
+      append([
+        { text: 'The helper robot is unavailable right now (AI service not reachable).', type: 'error' },
+        { text: '', type: 'output' },
       ]);
     }
   };
 
-  const handleCommandSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cmd = inputVal.trim();
-    if (!cmd) return;
-
-    const newHistory = [...history, { text: `visitor@aura-os:~$ ${cmd}`, type: 'input' as const }];
-    setCmdHistory(prev => [...prev, cmd]);
-    setHistoryIdx(-1);
-
-    const parts = cmd.split(' ');
-    const command = parts[0].toLowerCase();
-    const args = parts.slice(1);
-
-    let outputLines: ConsoleLine[] = [];
+  const run = (raw: string) => {
+    const s = useOSStore.getState();
+    const [head = '', ...args] = raw.trim().split(/\s+/);
+    const argStr = args.join(' ');
+    const command = resolveCommand(head.toLowerCase());
+    const out: NewLine[] = [];
+    const push = (text: string, type: LineType = 'output', href?: string) => out.push({ text, type, href });
+    const loadingNote = () => {
+      if (s.dataStatus === 'loading') push('Portfolio data is still loading, try again in a moment.', 'muted');
+      if (s.dataStatus === 'error') push('Portfolio data failed to load. Run "open projects" and press Retry.', 'error');
+    };
 
     switch (command) {
-      case 'help':
-        outputLines = [
-          { text: 'AVAILABLE COMMANDS:', type: 'success' },
-          { text: '  help          - Show this help menu', type: 'output' },
-          { text: '  about / bio   - Display developer bio & summary', type: 'output' },
-          { text: '  projects      - List all interactive projects', type: 'output' },
-          { text: '  skills        - Display developer tech stack', type: 'output' },
-          { text: '  clear / cls   - Clear console screen', type: 'output' },
-          { text: '  open <app>    - Launch window (bio, projects, settings, frieren, projector)', type: 'output' },
-          { text: '  theme <mode>  - Switch OS theme mode (light / dark)', type: 'output' },
-          { text: '  wallpaper <n> - Switch desktop wallpaper (1 - 4)', type: 'output' },
-          { text: '  date          - Show current system time', type: 'output' },
-          { text: '  lock          - Lock session workspace', type: 'output' },
-        ];
-        break;
-
-      case 'clear':
-      case 'cls':
-        setHistory([]);
-        setInputVal('');
-        return;
-
-      case 'about':
-      case 'bio':
-        outputLines = [
-          { text: `NAME     : ${profile.name}`, type: 'output' },
-          { text: `TITLE    : ${profile.title}`, type: 'output' },
-          { text: `LOCATION : ${profile.location}`, type: 'output' },
-          { text: `EMAIL    : ${profile.email}`, type: 'output' },
-          { text: `BIO      : ${profile.bio}`, type: 'output' },
-        ];
-        break;
-
-      case 'projects':
-        outputLines = [
-          { text: `REGISTERED PROJECTS (${projects.length}):`, type: 'success' },
-          ...projects.map((p: any, i: number) => ({
-            text: `  [${i + 1}] ${p.title} - ${p.description.substring(0, 45)}...`,
-            type: 'output' as const
-          })),
-        ];
-        break;
-
-      case 'skills':
-        outputLines = [
-          { text: `SKILLS MATRIX (${skills.length} Categories):`, type: 'success' },
-          ...skills.map((s: any) => ({
-            text: `  ✦ ${s.category}: ${s.skills.join(', ')}`,
-            type: 'output' as const
-          })),
-        ];
-        break;
-
-      case 'open':
-        if (args.length > 0) {
-          const appArg = args[0].toLowerCase();
-          const appMap: Record<string, string> = {
-            bio: 'bio',
-            notepad: 'bio',
-            projects: 'projects',
-            settings: 'settings',
-            frieren: 'frieren',
-            terminal: 'terminal',
-            projector: 'projector',
-            widgets: 'widgets',
-          };
-          const storeId = appMap[appArg];
-          if (storeId) {
-            openWindow(storeId);
-            outputLines = [{ text: `[SYSTEM] Launching ${storeId}...`, type: 'success' }];
-          } else {
-            outputLines = [
-              { text: `Error: Application "${appArg}" not recognized.`, type: 'error' },
-              { text: 'Available apps: bio, projects, settings, frieren, terminal, projector, widgets', type: 'output' },
-            ];
-          }
-        } else {
-          outputLines = [
-            { text: 'Usage: open [app_name]', type: 'success' },
-            { text: 'Available apps: bio, projects, settings, frieren, terminal, projector, widgets', type: 'output' },
-          ];
+      case 'help': {
+        push('Available commands:', 'success');
+        const width = Math.max(...COMMANDS.map((c) => (c.usage || c.name).length)) + 2;
+        for (const c of COMMANDS) {
+          const alias = c.aliases?.length ? ` (also: ${c.aliases.join(', ')})` : '';
+          push(`  ${(c.usage || c.name).padEnd(width)}${c.description}${alias}`);
         }
         break;
+      }
 
-      case 'theme':
-        if (args.length > 0 && (args[0] === 'light' || args[0] === 'dark')) {
-          useOSStore.getState().setThemeMode(args[0] as 'light' | 'dark');
-          outputLines = [{ text: `Theme switched to: ${args[0]}`, type: 'success' }];
+      case 'about': {
+        loadingNote();
+        const p = s.profile;
+        push(p.name, 'success');
+        if (p.title) push(p.title);
+        if (p.location) push(`Location: ${p.location}`, 'muted');
+        push('');
+        push(p.bio || 'No bio written yet.');
+        push('');
+        push('More in the About me app: open bio', 'muted');
+        break;
+      }
+
+      case 'projects': {
+        loadingNote();
+        if (s.projects.length === 0) {
+          if (s.dataStatus === 'ready') push('No projects published yet.', 'muted');
+          break;
+        }
+        push(`Projects (${s.projects.length}):`, 'success');
+        s.projects.forEach((p, i) => {
+          const meta = [p.role, p.period].filter(Boolean).join(' · ');
+          push(`  [${i + 1}] ${p.title}${p.featured ? '  ★ featured' : ''}${meta ? `  (${meta})` : ''}`);
+          if (p.description) push(`      ${shorten(p.description)}`, 'muted');
+          if (p.tags.length) push(`      ${p.tags.join(', ')}`, 'muted');
+        });
+        push('');
+        push('Tip: "view 1" opens the first project, "explain 1" asks the robot about it.', 'muted');
+        break;
+      }
+
+      case 'view':
+      case 'explain': {
+        if (!argStr) {
+          push(`Usage: ${command} <#|name>   e.g. ${command} 1`, 'error');
+          break;
+        }
+        const project = findProject(s.projects, argStr);
+        if (!project) {
+          loadingNote();
+          push(`No project matches "${argStr}". Type "projects" for the list.`, 'error');
+          break;
+        }
+        if (command === 'view') {
+          requestProjectDetail(project.id);
+          s.openWindow('projects', 'Projects');
+          push(`Opening "${project.title}" in Projects…`, 'success');
         } else {
-          outputLines = [{ text: `Current theme mode: ${themeMode}. Usage: theme <light|dark>`, type: 'output' }];
+          push(`Asking the helper robot about "${project.title}"…`, 'muted');
+          void explainProject(project);
         }
         break;
+      }
 
-      case 'wallpaper':
-        if (args.length > 0) {
-          const wpIdx = parseInt(args[0]);
-          if (!isNaN(wpIdx) && wpIdx >= 1 && wpIdx <= 4) {
-            setWallpaper(`wp-${wpIdx}`);
-            outputLines = [{ text: `Wallpaper set to wp-${wpIdx}`, type: 'success' }];
-          } else {
-            outputLines = [{ text: 'Usage: wallpaper <1|2|3|4>', type: 'error' }];
-          }
+      case 'skills': {
+        loadingNote();
+        const groups = s.skills.filter((g) => g.skills.length > 0);
+        if (groups.length === 0) {
+          if (s.dataStatus === 'ready') push('No skills added yet.', 'muted');
+          break;
+        }
+        push(`Skills (${groups.length} groups):`, 'success');
+        groups.forEach((g) => push(`  ${g.category}: ${g.skills.join(', ')}`));
+        break;
+      }
+
+      case 'experience': {
+        loadingNote();
+        if (s.experiences.length === 0) {
+          if (s.dataStatus === 'ready') push('No experience added yet.', 'muted');
+          break;
+        }
+        push('Experience:', 'success');
+        s.experiences.forEach((e) => {
+          push(`  ${e.role} @ ${e.company}${e.duration ? `  (${e.duration})` : ''}`);
+          e.description.forEach((d) => push(`    - ${d}`, 'muted'));
+        });
+        break;
+      }
+
+      case 'education': {
+        loadingNote();
+        if (s.educations.length === 0) {
+          if (s.dataStatus === 'ready') push('No education added yet.', 'muted');
+          break;
+        }
+        push('Education:', 'success');
+        s.educations.forEach((e) => {
+          push(`  ${e.degree}${e.field ? `, ${e.field}` : ''}: ${e.institution}${e.period ? `  (${e.period})` : ''}`);
+          if (e.description) push(`    ${e.description}`, 'muted');
+        });
+        break;
+      }
+
+      case 'certs': {
+        loadingNote();
+        if (s.certifications.length === 0) {
+          if (s.dataStatus === 'ready') push('No certifications added yet.', 'muted');
+          break;
+        }
+        push('Certifications:', 'success');
+        s.certifications.forEach((c) => {
+          push(`  ${c.name}: ${c.issuer}${c.date ? `, ${c.date}` : ''}`);
+          const href = safeHref(c.credentialUrl);
+          if (href) push(`    ${href}`, 'muted', href);
+        });
+        break;
+      }
+
+      case 'contact': {
+        loadingNote();
+        const p = s.profile;
+        const links: Array<[string, string | null]> = [
+          ['GitHub', safeHref(p.githubUrl)],
+          ['LinkedIn', safeHref(p.linkedinUrl)],
+          ['Website', safeHref(p.websiteUrl)],
+          ['CV', safeHref(p.resumeUrl)],
+        ];
+        push('Get in touch:', 'success');
+        if (p.email) push(`  Email    ${p.email}`, 'output', `mailto:${p.email}`);
+        if (p.phone) push(`  Phone    ${p.phone}`, 'output', `tel:${p.phone.replace(/[^\d+]/g, '')}`);
+        links.forEach(([label, href]) => href && push(`  ${label.padEnd(8)} ${href}`, 'output', href));
+        push('  Or leave a message: open bio → Contact', 'muted');
+        break;
+      }
+
+      case 'neofetch': {
+        const c = readClientInfo();
+        const wp = WALLPAPERS.find((w) => w.id === s.wallpaper);
+        const mins = mountedAt.current ? Math.max(0, Math.round((Date.now() - mountedAt.current) / 60000)) : 0;
+        ART.forEach((a) => push(a, 'success'));
+        push('');
+        push('visitor@aura-os', 'success');
+        push('---------------', 'muted');
+        push(`OS         Aura OS ${OS_VERSION}`);
+        push(`Owner      ${s.profile.name}${s.profile.title ? `, ${s.profile.title}` : ''}`);
+        push(`Browser    ${c.browser} on ${c.platform}`);
+        push(`Screen     ${c.screen} (window ${c.viewport})`);
+        push(`Theme      ${s.themeMode}`);
+        push(`Wallpaper  ${wp ? `${wp.name} (${wp.id})` : s.wallpaper}`);
+        push(
+          `Content    ${s.projects.length} projects, ${s.skills.length} skill groups, ${s.experiences.length} jobs, ` +
+            `${s.educations.length} education, ${s.certifications.length} certs`,
+        );
+        push(`Data       ${s.dataStatus}`);
+        push(`Terminal   open for ${mins} min`);
+        break;
+      }
+
+      case 'open': {
+        const name = args[0]?.toLowerCase();
+        if (!name) {
+          push('Usage: open <app>', 'error');
+          push(`Apps: ${APP_NAMES.join(', ')}`, 'muted');
+          break;
+        }
+        if (name === 'widgets') {
+          s.setIsWidgetsOpen(true);
+          push('Opening widgets…', 'success');
+          break;
+        }
+        const app = APPS[name];
+        if (!app) {
+          push(`Unknown app "${name}".`, 'error');
+          push(`Apps: ${APP_NAMES.join(', ')}`, 'muted');
+          break;
+        }
+        s.openWindow(app.id, app.title);
+        push(`Opening ${app.title}…`, 'success');
+        break;
+      }
+
+      case 'theme': {
+        const mode = args[0]?.toLowerCase();
+        if (mode === 'light' || mode === 'dark') {
+          s.setThemeMode(mode);
+          push(`Theme set to ${mode}.`, 'success');
+        } else if (mode) {
+          push(`Unknown theme "${args[0]}". Usage: theme <light|dark>`, 'error');
         } else {
-          outputLines = [{ text: `Current wallpaper: ${wallpaper}`, type: 'output' }];
+          push(`Current theme: ${s.themeMode}. Usage: theme <light|dark>`);
         }
         break;
+      }
+
+      case 'wallpaper': {
+        const arg = args[0]?.toLowerCase();
+        if (!arg) {
+          push('Wallpapers:', 'success');
+          WALLPAPERS.forEach((w, i) => push(`  ${i + 1}  ${w.id.padEnd(10)} ${w.name}${w.id === s.wallpaper ? '  ← current' : ''}`));
+          push('Usage: wallpaper <1-4|id>', 'muted');
+          break;
+        }
+        const n = Number(arg);
+        const wp = Number.isInteger(n) ? WALLPAPERS[n - 1] : WALLPAPERS.find((w) => w.id === arg);
+        if (!wp) {
+          push(`Unknown wallpaper "${args[0]}". Try 1-${WALLPAPERS.length} or one of: ${WALLPAPERS.map((w) => w.id).join(', ')}`, 'error');
+          break;
+        }
+        s.setWallpaper(wp.id);
+        push(`Wallpaper set to ${wp.name}.`, 'success');
+        break;
+      }
 
       case 'date':
-        outputLines = [{ text: new Date().toString(), type: 'output' }];
+        push(new Date().toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'long' }));
+        break;
+
+      case 'history':
+        if (cmdHistory.length === 0) push('No commands yet.', 'muted');
+        cmdHistory.forEach((c, i) => push(`  ${String(i + 1).padStart(3)}  ${c}`));
         break;
 
       case 'lock':
-        setIsLocked(true);
-        outputLines = [{ text: 'Locking workspace session...', type: 'success' }];
+        push('Locking the screen…', 'success');
+        s.lockScreen();
         break;
 
-      default: {
-        let projectToView: any = null;
-        let isProjectCmd = false;
-        const cleanInput = cmd.toLowerCase().trim();
+      case 'clear':
+        return 'clear' as const;
 
-        if (cleanInput.startsWith('view ')) {
-          isProjectCmd = true;
-          const projName = cleanInput.substring(5).trim().toLowerCase().replace(/\s+/g, '');
-          projectToView = projects.find(p => p.title.toLowerCase().replace(/\s+/g, '') === projName || p.title.toLowerCase().includes(projName));
-        } else {
-          projectToView = projects.find(p => p.title.toLowerCase().replace(/\s+/g, '') === cleanInput.replace(/\s+/g, ''));
-          if (projectToView) {
-            isProjectCmd = true;
-          }
-        }
-
-        if (isProjectCmd) {
-          if (projectToView) {
-            setSelectedProjectId(projectToView.id);
-            openWindow('projector', `Projector - ${projectToView.title}`);
-            outputLines = [
-              { text: `[SYSTEM] Opening Projector Screen for "${projectToView.title}"...`, type: 'success' },
-              { text: `[SYSTEM] Requesting AI Assistant review for "${projectToView.title}"...`, type: 'output' },
-            ];
-            triggerAIExplanation(projectToView);
-          } else {
-            outputLines = [
-              { text: `Error: Project "${cmd.replace(/^view\s+/i, '')}" not found.`, type: 'error' },
-              { text: 'Type "projects" to see the list of available projects.', type: 'output' },
-            ];
-          }
-        } else {
-          outputLines = [
-            { text: `"${cmd}" is not recognized as an internal or external command.`, type: 'error' },
-            { text: 'Type "help" for a list of available commands.', type: 'output' },
-          ];
-        }
-        break;
-      }
+      default:
+        push(`Command not found: ${head}. Type "help" to see what I understand.`, 'error');
     }
+    return out;
+  };
 
-    setHistory([...newHistory, ...outputLines, { text: '', type: 'output' }]);
-    setInputVal('');
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cmd = input.trim();
+    setInput('');
+    setHistoryIdx(-1);
+    if (!cmd) {
+      append([{ text: PROMPT, type: 'input' }]);
+      return;
+    }
+    const result = run(cmd);
+    setCmdHistory((h) => (h[h.length - 1] === cmd ? h : [...h, cmd]).slice(-100));
+    if (result === 'clear') {
+      setLines([]);
+      return;
+    }
+    append([{ text: `${PROMPT} ${cmd}`, type: 'input' }, ...result, { text: '', type: 'output' }]);
+  };
+
+  const complete = () => {
+    const hasSpace = /\s/.test(input);
+    if (!hasSpace) {
+      const matches = COMMAND_NAMES.filter((c) => c.startsWith(input.toLowerCase()));
+      if (matches.length === 1) setInput(`${matches[0]} `);
+      else if (matches.length > 1) {
+        const prefix = commonPrefix(matches);
+        if (prefix.length > input.length) setInput(prefix);
+        else append([{ text: `${PROMPT} ${input}`, type: 'input' }, { text: matches.join('  '), type: 'muted' }]);
+      }
+      return;
+    }
+    const [head, ...rest] = input.split(/\s+/);
+    const partial = (rest[rest.length - 1] || '').toLowerCase();
+    const cmd = resolveCommand(head.toLowerCase());
+    const options =
+      cmd === 'open' ? APP_NAMES : cmd === 'theme' ? ['light', 'dark'] : cmd === 'wallpaper' ? WALLPAPERS.map((w) => w.id) : [];
+    const matches = options.filter((o) => o.startsWith(partial));
+    if (matches.length === 1) setInput(`${head} ${matches[0]}`);
+    else if (matches.length > 1) append([{ text: `${PROMPT} ${input}`, type: 'input' }, { text: matches.join('  '), type: 'muted' }]);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (cmdHistory.length === 0) return;
+      if (historyIdx === -1) draft.current = input;
+      const next = Math.min(historyIdx + 1, cmdHistory.length - 1);
+      setHistoryIdx(next);
+      setInput(cmdHistory[cmdHistory.length - 1 - next]);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIdx === -1) return;
+      const next = historyIdx - 1;
+      setHistoryIdx(next);
+      setInput(next === -1 ? draft.current : cmdHistory[cmdHistory.length - 1 - next]);
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      complete();
+    } else if (e.key === 'l' && e.ctrlKey) {
+      e.preventDefault();
+      setLines([]);
+    }
+  };
+
+  const lineClass: Record<LineType, string> = {
+    input: 'text-fg font-bold',
+    output: 'text-fg',
+    success: 'text-success font-bold',
+    error: 'text-danger font-bold',
+    muted: 'text-fg-muted',
   };
 
   return (
-    <div 
-      onClick={focusInput}
-      className={`h-full flex flex-col font-mono text-xs p-3 overflow-hidden leading-relaxed select-text cursor-text gap-3 ${
-        isDark ? 'bg-[#18181b] text-slate-200' : 'bg-[#fdfbf7] text-[#2d2a26]'
-      }`}
-    >
-      {/* Doodle Terminal Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#fef08a] border-[2.5px] border-[#2d2a26] text-[#2d2a26] font-extrabold rounded-2xl shadow-[4px_4px_0px_0px_#2d2a26] shrink-0">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">✏</span>
-          <Terminal className="w-4 h-4 text-[#2d2a26]" />
-          <span className="text-xs tracking-wider uppercase font-black">Doodle Console Terminal</span>
-        </div>
-        <span className="text-[10px] bg-[#2d2a26] text-[#fef08a] px-2.5 py-0.5 rounded-full font-bold shadow-sm">
-          Notebook Shell
-        </span>
-      </div>
-
-      {/* Doodle Response Container with Bold Dark Outlines */}
-      <div className={`flex-1 overflow-y-auto p-4 border-[2.5px] border-[#2d2a26] rounded-2xl shadow-[4px_4px_0px_0px_#2d2a26] font-mono ${
-        isDark ? 'bg-zinc-900/90 text-slate-200' : 'bg-[#fffdfa] text-[#2d2a26]'
-      }`}>
-        {history.map((line, idx) => (
-          <div 
-            key={idx} 
-            className={`
-              whitespace-pre-wrap min-h-[16px] py-0.5 font-bold
-              ${line.type === 'input' ? (isDark ? 'text-[#fef08a]' : 'text-amber-900 font-extrabold') : ''}
-              ${line.type === 'error' ? 'text-rose-500 font-extrabold' : ''}
-              ${line.type === 'success' ? (isDark ? 'text-emerald-400' : 'text-emerald-800') : ''}
-              ${line.type === 'output' ? (isDark ? 'text-slate-300' : 'text-[#2d2a26]') : ''}
-            `}
-          >
-            {line.text}
+    <div className="h-full flex flex-col gap-2 p-2 sm:p-3 bg-surface text-fg font-mono text-xs">
+      <div
+        role="log"
+        aria-live="polite"
+        aria-label="Terminal output"
+        data-selectable
+        onMouseUp={() => {
+          // Clicking the output focuses the prompt, unless the visitor is selecting text to copy.
+          if (!window.getSelection()?.toString()) inputRef.current?.focus();
+        }}
+        className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 rounded-2xl border-[2.5px] border-line bg-surface-2 shadow-doodle-sm select-text leading-relaxed"
+      >
+        {lines.map((line) => (
+          <div key={line.id} className={cx('whitespace-pre-wrap break-words min-h-[1.25em]', lineClass[line.type])}>
+            {line.href ? (
+              <a href={line.href} target={line.href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className="underline decoration-dashed underline-offset-2 hover:text-success">
+                {line.text}
+              </a>
+            ) : (
+              line.text
+            )}
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Notebook Prompt Input Container */}
-      <form 
-        onSubmit={handleCommandSubmit} 
-        className={`flex items-center px-4 py-2.5 border-[2.5px] border-[#2d2a26] rounded-2xl shadow-[4px_4px_0px_0px_#2d2a26] shrink-0 ${
-          isDark ? 'bg-zinc-900/90' : 'bg-[#fcf9f2]'
-        }`}
-      >
-        <span className="mr-2 text-xs flex items-center gap-1.5 shrink-0 select-none font-extrabold">
-          <span className="text-amber-500">✏ ~</span>
-          <span className={isDark ? 'text-emerald-400' : 'text-emerald-800'}>visitor@aura-os:~$</span>
-        </span>
+      <form onSubmit={submit} className="flex items-center gap-2 px-3 py-2 rounded-2xl border-[2.5px] border-line bg-surface-2 shadow-doodle-sm shrink-0">
+        <label htmlFor="terminal-input" className="shrink-0 text-success font-bold select-none">
+          <span className="hidden min-[420px]:inline">{PROMPT}</span>
+          <span className="min-[420px]:hidden">$</span>
+          <span className="sr-only"> command</span>
+        </label>
         <input
+          id="terminal-input"
           ref={inputRef}
           type="text"
-          value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className={`flex-1 bg-transparent border-none outline-none font-mono text-xs placeholder-zinc-500 focus:ring-0 select-text font-bold ${
-            isDark ? 'text-white' : 'text-[#2d2a26]'
-          }`}
-          placeholder="type notebook command..."
+          value={input}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setHistoryIdx(-1);
+          }}
+          onKeyDown={onKeyDown}
           autoFocus
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder='try "help"'
+          className="flex-1 min-w-0 bg-transparent border-none outline-none text-fg placeholder:text-fg-muted/70 font-mono text-xs"
         />
-        <button 
-          type="submit" 
-          className="ml-2 bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] p-1.5 rounded-xl hover:bg-yellow-300 transition-all shadow-[2px_2px_0px_0px_#2d2a26] cursor-pointer"
-        >
-          <Send className="w-3.5 h-3.5 text-[#2d2a26]" />
-        </button>
+        <IconButton type="submit" label="Run command" size="sm" variant="primary">
+          <CornerDownLeft className="w-3.5 h-3.5" />
+        </IconButton>
       </form>
     </div>
   );

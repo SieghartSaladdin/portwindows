@@ -1,297 +1,278 @@
-import { prisma } from "@/lib/db";
-import { PROFILE, PROJECTS, SKILLS, EXPERIENCES } from "@/lib/data";
-import { ChatOpenAI } from "@langchain/openai";
-import { SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { getSystemPrompt } from "./prompts";
+import { AIMessage, AIMessageChunk, type BaseMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { z } from "zod";
+import { WALLPAPERS } from "@/lib/data";
+import { createChatModel, getLlmConfig } from "@/lib/server/llm";
+import { loadPortfolio } from "@/lib/server/portfolio";
+import { isHttpUrl } from "@/lib/server/validation";
+import type { PortfolioData } from "@/lib/types";
+import { getSystemPrompt, OPEN_WINDOW_TARGETS } from "./prompts";
+import type { AgentState, ChatAction } from "./state";
 
-// Node 1: Retrieve context data overview from DB
-export async function retrieveContext(state: any) {
-  if (state.partner !== 'robot') {
-    return { contextData: "" };
+export class LlmNotConfiguredError extends Error {}
+
+const DATA_UNAVAILABLE =
+  "PORTFOLIO DATA UNAVAILABLE: the database could not be reached. Tell the visitor you cannot access the portfolio details right now and suggest trying again later. Do not guess.";
+
+const WALLPAPER_IDS = WALLPAPERS.map((w) => w.id) as [string, ...string[]];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function collectLinks(data: PortfolioData): string[] {
+  const p = data.profile;
+  const urls = [
+    p?.githubUrl,
+    p?.linkedinUrl,
+    p?.websiteUrl,
+    ...data.projects.flatMap((proj) => [proj.githubUrl, proj.liveUrl]),
+    ...data.certifications.map((c) => c.credentialUrl),
+  ];
+  return Array.from(new Set(urls.filter((u): u is string => !!u && isHttpUrl(u))));
+}
+
+const listOrEmpty = (items: string[], empty: string) => (items.length ? items.join("\n") : empty);
+
+function buildContext(data: PortfolioData): string {
+  const p = data.profile;
+  const profileLines = p
+    ? [
+        `Name: ${p.name}`,
+        `Title: ${p.title || "(not set)"}`,
+        `Location: ${p.location || "(not set)"}`,
+        `Email: ${p.email || "(not set)"}`,
+        `Phone: ${p.phone || "(not set)"}`,
+        `GitHub: ${p.githubUrl || "(not set)"}`,
+        `LinkedIn: ${p.linkedinUrl || "(not set)"}`,
+        `Website: ${p.websiteUrl || "(not set)"}`,
+        `CV / resume available: ${p.resumeUrl ? "yes (in the Bio window)" : "no"}`,
+      ].join("\n")
+    : "The profile has not been set up yet.";
+
+  return [
+    `PROFILE\n${profileLines}`,
+    `PROJECTS (${data.projects.length})\n${listOrEmpty(
+      data.projects.map((x) => `- ${x.title} [id: ${x.id}]${x.tags.length ? ` (${x.tags.slice(0, 6).join(", ")})` : ""}`),
+      "No projects have been added yet.",
+    )}`,
+    `SKILL GROUPS (${data.skills.length})\n${listOrEmpty(
+      data.skills.map((s) => `- ${s.category}: ${s.skills.slice(0, 12).join(", ")}`),
+      "No skills have been added yet.",
+    )}`,
+    `WORK EXPERIENCE (${data.experiences.length})\n${listOrEmpty(
+      data.experiences.map((e) => `- ${e.role} at ${e.company} (${e.duration})`),
+      "No work experience has been added yet.",
+    )}`,
+    `EDUCATION (${data.educations.length})\n${listOrEmpty(
+      data.educations.map((e) => `- ${e.degree}${e.field ? ` in ${e.field}` : ""}, ${e.institution} (${e.period})`),
+      "No education entries have been added yet.",
+    )}`,
+    `CERTIFICATIONS (${data.certifications.length})\n${listOrEmpty(
+      data.certifications.map((c) => `- ${c.name}, ${c.issuer} (${c.date})`),
+      "No certifications have been added yet.",
+    )}`,
+  ].join("\n\n");
+}
+
+function getToolCalls(message: BaseMessage | undefined) {
+  if (!message) return [];
+  if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) return message.tool_calls ?? [];
+  return [];
+}
+
+const json = (value: unknown) => JSON.stringify(value, null, 2);
+
+function matches(query: string, ...fields: (string | null | undefined | string[])[]): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return fields.some((f) => (Array.isArray(f) ? f.join(" ") : f || "").toLowerCase().includes(q));
+}
+
+function contentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (typeof part === "string" ? part : part && typeof part === "object" && "text" in part ? String(part.text) : ""))
+      .join("");
   }
+  return "";
+}
 
+// ---------------------------------------------------------------------------
+// Tool definitions (HelperBot only)
+// ---------------------------------------------------------------------------
+
+const noArgs = z.object({});
+const queryArg = (describe: string) => z.object({ query: z.string().max(200).describe(describe) });
+
+const TOOLS = [
+  { name: "get_profile_info", description: "Get the developer's profile: name, title, bio, location, email, phone, GitHub, LinkedIn, website and whether a CV is available.", schema: noArgs },
+  { name: "list_all_projects", description: "List every project in the portfolio.", schema: noArgs },
+  { name: "search_projects", description: "Search projects by keyword (title, description, role) or tech tag (e.g. 'React').", schema: queryArg("Keyword or tech tag") },
+  { name: "get_project_details", description: "Get full details of one project by id or title.", schema: z.object({ titleOrId: z.string().max(200).describe("Project id or title") }) },
+  { name: "list_all_skills", description: "List all skill groups and skills.", schema: noArgs },
+  { name: "search_skills", description: "Search skills by category or technology keyword.", schema: queryArg("Category or technology keyword") },
+  { name: "list_all_experiences", description: "List the full work history.", schema: noArgs },
+  { name: "search_experiences", description: "Search work history by company, role or keyword.", schema: queryArg("Company, role or keyword") },
+  { name: "list_educations", description: "List the developer's education history (schools, degrees, periods).", schema: noArgs },
+  { name: "list_certifications", description: "List the developer's certifications (name, issuer, date, credential link).", schema: noArgs },
+  {
+    name: "open_window",
+    description:
+      "Open a desktop app: 'bio', 'projects', 'terminal', 'settings', 'frieren', 'admin' (Developer Hub), or 'projector' (preview one project; pass projectId).",
+    schema: z.object({
+      target: z.enum(OPEN_WINDOW_TARGETS),
+      projectId: z.string().max(200).optional().describe("Project id or title, only for target 'projector'"),
+    }),
+  },
+  { name: "change_wallpaper", description: "Change the desktop wallpaper.", schema: z.object({ theme: z.enum(WALLPAPER_IDS) }) },
+  { name: "open_widgets", description: "Open the widgets panel on the desktop.", schema: noArgs },
+  {
+    name: "open_link",
+    description: "Open a URL from the portfolio data (profile or project links) in a new tab. Never invent URLs.",
+    schema: z.object({ url: z.string().max(2048).describe("An absolute URL taken from the portfolio data") }),
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Graph nodes
+// ---------------------------------------------------------------------------
+
+/** Node 1: load a compact snapshot of the portfolio for the system prompt. */
+export async function retrieveContext(state: AgentState) {
+  if (state.partner !== "robot") return { contextData: "", allowedLinks: [] };
   try {
-    const dbProfile = await prisma.profile.findUnique({ where: { id: '1' } });
-    const profileName = dbProfile?.name || PROFILE.name;
-    const profileTitle = dbProfile?.title || PROFILE.title;
-
-    const contextData = `Developer Name: ${profileName}, Role: ${profileTitle}. Database tools are active for live querying.`;
-    return { contextData };
+    const data = await loadPortfolio();
+    return { contextData: buildContext(data), allowedLinks: collectLinks(data) };
   } catch (err) {
-    const contextData = `Developer Name: ${PROFILE.name}, Role: ${PROFILE.title}. Database tools active.`;
-    return { contextData };
+    console.error("[chat] could not load portfolio context:", err instanceof Error ? err.message : err);
+    return { contextData: DATA_UNAVAILABLE, allowedLinks: [] };
   }
 }
 
-// Node 2: Call the LLM with Database Query & UI Action Tools
-export async function callModel(state: any) {
-  const provider = process.env.LLM_PROVIDER || 'openrouter';
-  const apiKey = process.env.LLM_API_KEY || process.env.OPENROUTER_API_KEY || '';
-  const modelName = process.env.LLM_MODEL || 'google/gemma-4-31b-it:free';
-  const apiBaseUrl = process.env.LLM_API_BASE_URL || 'https://openrouter.ai/api/v1';
+/** Node 2: call the LLM (HelperBot gets the data + UI tools). */
+export async function callModel(state: AgentState) {
+  const config = getLlmConfig();
+  if (!config) throw new LlmNotConfiguredError("LLM is not configured");
+  const model = createChatModel(config);
 
-  // Initialize ChatOpenAI client compatible with OpenRouter / Ollama
-  let model: ChatOpenAI;
-  if (provider === 'ollama') {
-    model = new ChatOpenAI({
-      apiKey: 'none',
-      configuration: {
-        baseURL: `${process.env.OLLAMA_BASE_URL || 'http://localhost:11434'}/v1`,
-      },
-      model: process.env.OLLAMA_MODEL || 'gemma2',
-      temperature: 0.2,
-    });
-  } else {
-    model = new ChatOpenAI({
-      apiKey: apiKey || 'none',
-      configuration: {
-        baseURL: apiBaseUrl,
-        defaultHeaders: {
-          'HTTP-Referer': 'https://github.com/google-gemini',
-          'X-Title': 'PortWindows',
-        }
-      },
-      model: modelName,
-      temperature: 0.2,
-    });
-  }
+  const chatMessages = [new SystemMessage(getSystemPrompt(state.partner, state.contextData)), ...state.messages];
+  const runnable = state.partner === "robot" ? model.bindTools(TOOLS) : model;
+  const response = await runnable.invoke(chatMessages);
 
-  const systemMessage = new SystemMessage(getSystemPrompt(state.partner, state.contextData));
-  const chatMessages = [systemMessage, ...state.messages];
-
-  // Define full suite of Database Query & UI Action tools for HelperBot
-  let finalModel: any = model;
-  if (state.partner === 'robot') {
-    // --- Database Query Tools ---
-    const getProfileInfoTool = {
-      name: "get_profile_info",
-      description: "Retrieve developer's full profile details (name, title, bio, email, location, GitHub, LinkedIn).",
-      schema: z.object({}),
-    };
-
-    const listAllProjectsTool = {
-      name: "list_all_projects",
-      description: "Retrieve a complete list of developer projects stored in the portfolio database.",
-      schema: z.object({}),
-    };
-
-    const searchProjectsTool = {
-      name: "search_projects",
-      description: "Search and filter developer projects by keyword (title, description) or tech stack tag (e.g. 'React', 'IoT', 'Next.js', 'Python').",
-      schema: z.object({
-        query: z.string().describe("Keyword or tech stack tag to search for in projects"),
-      }),
-    };
-
-    const getProjectDetailsTool = {
-      name: "get_project_details",
-      description: "Retrieve full details and metadata for a specific project by title or ID.",
-      schema: z.object({
-        titleOrId: z.string().describe("Title or unique ID of the project"),
-      }),
-    };
-
-    const listAllSkillsTool = {
-      name: "list_all_skills",
-      description: "Retrieve all skill categories and technical skills from the database.",
-      schema: z.object({}),
-    };
-
-    const searchSkillsTool = {
-      name: "search_skills",
-      description: "Search/filter technical skills by category (e.g. 'Frontend', 'Database') or specific technology keyword.",
-      schema: z.object({
-        query: z.string().describe("Category or technology keyword to search in skills matrix"),
-      }),
-    };
-
-    const listAllExperiencesTool = {
-      name: "list_all_experiences",
-      description: "Retrieve complete work history timeline and career experiences from the database.",
-      schema: z.object({}),
-    };
-
-    const searchExperiencesTool = {
-      name: "search_experiences",
-      description: "Filter work history timeline by company, role, or keyword.",
-      schema: z.object({
-        query: z.string().describe("Company, role, or keyword to search in work experience history"),
-      }),
-    };
-
-    // --- UI Action Tools ---
-    const openWindowTool = {
-      name: "open_window",
-      description: "Launch desktop applications. Targets: 'projects' (folder), 'bio' (notepad), 'terminal' (shell), 'settings' (control panel), 'projector' (media screen preview). For 'projector', specify the 'projectId' (id or title of the project to preview).",
-      schema: z.object({
-        target: z.enum(["projects", "bio", "terminal", "settings", "projector"]),
-        projectId: z.string().optional().describe("Exact ID or title of the project to preview when target is 'projector'"),
-      }),
-    };
-
-    const changeWallpaperTool = {
-      name: "change_wallpaper",
-      description: "Change the desktop background wallpaper gradient. Supported themes: 'default' (blue), 'sunset' (red), 'emerald' (green), 'cyberpunk' (neon).",
-      schema: z.object({
-        theme: z.enum(["default", "sunset", "emerald", "cyberpunk"]),
-      }),
-    };
-
-    const openWidgetsTool = {
-      name: "open_widgets",
-      description: "Slide open the left-side widgets panel (weather, calendar, CPU stats).",
-      schema: z.object({}),
-    };
-
-    const openLinkTool = {
-      name: "open_link",
-      description: "Open external profile URLs in a new browser tab (e.g. GitHub or LinkedIn links).",
-      schema: z.object({
-        url: z.string().describe("The full absolute URL to open"),
-      }),
-    };
-
-    finalModel = model.bindTools([
-      getProfileInfoTool,
-      listAllProjectsTool,
-      searchProjectsTool,
-      getProjectDetailsTool,
-      listAllSkillsTool,
-      searchSkillsTool,
-      listAllExperiencesTool,
-      searchExperiencesTool,
-      openWindowTool,
-      changeWallpaperTool,
-      openWidgetsTool,
-      openLinkTool,
-    ]);
-  }
-
-  // Invoke model
-  const response = await finalModel.invoke(chatMessages);
-  const rawContent = response.content as string;
-
-  return {
-    messages: [response],
-    output: rawContent,
-    action: state.action
-  };
+  return { messages: [response], output: contentToText(response.content) };
 }
 
-// Node 3: Execute tool calls and store action payloads / DB Query results
-export async function executeTools(state: any) {
+async function runDataTool(name: string, args: Record<string, unknown>): Promise<string> {
+  let data: PortfolioData;
+  try {
+    data = await loadPortfolio();
+  } catch {
+    return DATA_UNAVAILABLE;
+  }
+  const q = typeof args.query === "string" ? args.query : "";
+
+  switch (name) {
+    case "get_profile_info": {
+      if (!data.profile) return "The profile has not been set up yet.";
+      const { avatarUrl, resumeUrl, ...rest } = data.profile;
+      return json({ ...rest, hasAvatar: !!avatarUrl, hasResume: !!resumeUrl });
+    }
+    case "list_all_projects":
+      return data.projects.length ? json(data.projects) : "No projects have been added to the portfolio yet.";
+    case "search_projects": {
+      if (!data.projects.length) return "No projects have been added to the portfolio yet.";
+      const found = data.projects.filter((p) => matches(q, p.title, p.description, p.role, p.tags));
+      return found.length ? json(found) : `No projects match '${q}'. The portfolio has ${data.projects.length} project(s).`;
+    }
+    case "get_project_details": {
+      const key = (typeof args.titleOrId === "string" ? args.titleOrId : "").trim().toLowerCase();
+      const found = key
+        ? data.projects.find((p) => p.id.toLowerCase() === key || p.title.toLowerCase() === key) ||
+          data.projects.find((p) => p.title.toLowerCase().includes(key) || key.includes(p.title.toLowerCase()))
+        : undefined;
+      return found ? json(found) : `No project named '${args.titleOrId}' exists in the portfolio.`;
+    }
+    case "list_all_skills":
+      return data.skills.length ? json(data.skills) : "No skills have been added to the portfolio yet.";
+    case "search_skills": {
+      if (!data.skills.length) return "No skills have been added to the portfolio yet.";
+      const found = data.skills.filter((s) => matches(q, s.category, s.skills));
+      return found.length ? json(found) : `No skills match '${q}'.`;
+    }
+    case "list_all_experiences":
+      return data.experiences.length ? json(data.experiences) : "No work experience has been added to the portfolio yet.";
+    case "search_experiences": {
+      if (!data.experiences.length) return "No work experience has been added to the portfolio yet.";
+      const found = data.experiences.filter((e) => matches(q, e.role, e.company, e.description));
+      return found.length ? json(found) : `No work experience matches '${q}'.`;
+    }
+    case "list_educations":
+      return data.educations.length ? json(data.educations) : "No education entries have been added to the portfolio yet.";
+    case "list_certifications":
+      return data.certifications.length ? json(data.certifications) : "No certifications have been added to the portfolio yet.";
+    default:
+      return `Unknown tool '${name}'.`;
+  }
+}
+
+/** Node 3: execute tool calls; UI tools record an action for the client. */
+export async function executeTools(state: AgentState) {
   const lastMessage = state.messages[state.messages.length - 1];
-  const toolCalls = lastMessage.tool_calls || [];
-  
+  const toolCalls = getToolCalls(lastMessage);
   const messages: ToolMessage[] = [];
-  let actionJson: any = state.action || null;
+  let action: ChatAction | null = state.action ?? null;
 
   for (const call of toolCalls) {
-    let result = "";
-
+    const args = (call.args ?? {}) as Record<string, unknown>;
+    let result: string;
     try {
-      // --- DB Query Tools Execution ---
-      if (call.name === "get_profile_info") {
-        const dbProf = await prisma.profile.findUnique({ where: { id: '1' } });
-        const data = dbProf || PROFILE;
-        result = JSON.stringify(data, null, 2);
-      } else if (call.name === "list_all_projects") {
-        const dbProjs = await prisma.project.findMany();
-        const data = dbProjs.length > 0 ? dbProjs : PROJECTS;
-        result = JSON.stringify(data, null, 2);
-      } else if (call.name === "search_projects") {
-        const q = (call.args.query || "").toLowerCase();
-        const dbProjs = await prisma.project.findMany();
-        const pool = dbProjs.length > 0 ? dbProjs : PROJECTS;
-        const matches = pool.filter((p: any) => {
-          const t = (p.title || "").toLowerCase();
-          const d = (p.description || "").toLowerCase();
-          const tags = Array.isArray(p.tags) ? p.tags.join(" ").toLowerCase() : (p.tags || "").toLowerCase();
-          return t.includes(q) || d.includes(q) || tags.includes(q);
-        });
-        result = matches.length > 0 
-          ? JSON.stringify(matches, null, 2) 
-          : `No projects found matching query '${call.args.query}'. Total projects available: ${pool.length}.`;
-      } else if (call.name === "get_project_details") {
-        const q = (call.args.titleOrId || "").toLowerCase();
-        const dbProjs = await prisma.project.findMany();
-        const pool = dbProjs.length > 0 ? dbProjs : PROJECTS;
-        const match = pool.find((p: any) => 
-          p.id.toLowerCase() === q || 
-          p.title.toLowerCase().includes(q) ||
-          q.includes(p.title.toLowerCase())
-        );
-        result = match ? JSON.stringify(match, null, 2) : `Project '${call.args.titleOrId}' not found.`;
-      } else if (call.name === "list_all_skills") {
-        const dbSkills = await prisma.skill.findMany();
-        const data = dbSkills.length > 0 ? dbSkills : SKILLS;
-        result = JSON.stringify(data, null, 2);
-      } else if (call.name === "search_skills") {
-        const q = (call.args.query || "").toLowerCase();
-        const dbSkills = await prisma.skill.findMany();
-        const pool = dbSkills.length > 0 ? dbSkills : SKILLS;
-        const matches = pool.filter((s: any) => {
-          const cat = (s.category || "").toLowerCase();
-          const items = Array.isArray(s.skills) ? s.skills.join(" ").toLowerCase() : (s.skills || "").toLowerCase();
-          return cat.includes(q) || items.includes(q);
-        });
-        result = matches.length > 0 
-          ? JSON.stringify(matches, null, 2) 
-          : `No skills found matching query '${call.args.query}'.`;
-      } else if (call.name === "list_all_experiences") {
-        const dbExp = await prisma.experience.findMany();
-        const data = dbExp.length > 0 ? dbExp : EXPERIENCES;
-        result = JSON.stringify(data, null, 2);
-      } else if (call.name === "search_experiences") {
-        const q = (call.args.query || "").toLowerCase();
-        const dbExp = await prisma.experience.findMany();
-        const pool = dbExp.length > 0 ? dbExp : EXPERIENCES;
-        const matches = pool.filter((e: any) => {
-          const r = (e.role || "").toLowerCase();
-          const c = (e.company || "").toLowerCase();
-          const desc = Array.isArray(e.description) ? e.description.join(" ").toLowerCase() : (e.description || "").toLowerCase();
-          return r.includes(q) || c.includes(q) || desc.includes(q);
-        });
-        result = matches.length > 0 
-          ? JSON.stringify(matches, null, 2) 
-          : `No experiences found matching query '${call.args.query}'.`;
-      } 
-      // --- UI Action Tools Execution ---
-      else if (call.name === "open_window") {
-        actionJson = { type: "open_window", target: call.args.target, projectId: call.args.projectId };
-        result = `Successfully requested opening window: ${call.args.target}${call.args.projectId ? ` with project ID: ${call.args.projectId}` : ''}`;
+      if (call.name === "open_window") {
+        const target = String(args.target ?? "");
+        if (!(OPEN_WINDOW_TARGETS as readonly string[]).includes(target)) {
+          result = `Refused: '${target}' is not a desktop app.`;
+        } else {
+          const projectId = typeof args.projectId === "string" && args.projectId ? args.projectId : undefined;
+          action = { type: "open_window", target, ...(projectId ? { projectId } : {}) };
+          result = `Opening the '${target}' window${projectId ? ` for project '${projectId}'` : ""}.`;
+        }
       } else if (call.name === "change_wallpaper") {
-        actionJson = { type: "change_wallpaper", target: call.args.theme };
-        result = `Successfully requested changing wallpaper theme to: ${call.args.theme}`;
+        const theme = String(args.theme ?? "");
+        if (!WALLPAPER_IDS.includes(theme)) {
+          result = `Refused: unknown wallpaper '${theme}'.`;
+        } else {
+          action = { type: "change_wallpaper", target: theme };
+          result = `Changing the wallpaper to '${theme}'.`;
+        }
       } else if (call.name === "open_widgets") {
-        actionJson = { type: "open_widgets" };
-        result = "Successfully requested opening widgets board panel on the left.";
+        action = { type: "open_widgets" };
+        result = "Opening the widgets panel.";
       } else if (call.name === "open_link") {
-        actionJson = { type: "open_link", target: call.args.url };
-        result = `Successfully requested opening external link: ${call.args.url}`;
+        const url = String(args.url ?? "").trim();
+        if (!isHttpUrl(url) || !state.allowedLinks.includes(url)) {
+          result = "Refused: that link is not part of the portfolio data. Only links from the profile or projects can be opened.";
+        } else {
+          action = { type: "open_link", target: url };
+          result = `Opening ${url} in a new tab.`;
+        }
+      } else {
+        result = await runDataTool(call.name, args);
       }
-    } catch (err: any) {
-      result = `Error executing tool ${call.name}: ${err?.message || err}`;
+    } catch (err) {
+      console.error(`[chat] tool ${call.name} failed:`, err instanceof Error ? err.message : err);
+      result = `The tool '${call.name}' failed. Tell the visitor this information is unavailable right now.`;
     }
-    
-    messages.push(new ToolMessage({
-      content: result,
-      tool_call_id: call.id,
-      name: call.name
-    }));
+
+    messages.push(new ToolMessage({ content: result, tool_call_id: call.id ?? call.name, name: call.name }));
   }
 
-  return {
-    messages,
-    action: actionJson
-  };
+  return { messages, action };
 }
 
-// Conditional edge router
-export function routeAfterModel(state: any) {
+/** Conditional edge: keep looping while the model asks for tools. */
+export function routeAfterModel(state: AgentState) {
   const lastMessage = state.messages[state.messages.length - 1];
-  if (lastMessage && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+  if (getToolCalls(lastMessage).length > 0) {
     return "executeTools";
   }
   return "__end__";
