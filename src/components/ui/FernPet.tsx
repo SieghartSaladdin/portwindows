@@ -24,7 +24,7 @@ export function FernPet() {
     setActiveChatPartner,
     isThinking
   } = useOSStore();
-  const { isSpawned, spawnFern, scale, speechVolume } = frierenConfig;
+  const { isSpawned, spawnFern, scale } = frierenConfig;
 
   const isInConversation = activeChatPartner === 'fern' && (isChatInputOpen || !!frierenSpeech || !!fernSpeech || isThinking);
 
@@ -116,6 +116,7 @@ export function FernPet() {
   // Center-right spawn point for Fern
   useEffect(() => {
     if (isSpawned && spawnFern && typeof window !== 'undefined') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setPosition({
         x: window.innerWidth * 0.7 - scale / 2,
         y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
@@ -144,6 +145,7 @@ export function FernPet() {
   // 2. Sprite walking frame loops (runs at ~7.5Hz when walking)
   useEffect(() => {
     if (!isSpawned || !spawnFern || !isWalking) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setFrame(0);
       return;
     }
@@ -160,6 +162,7 @@ export function FernPet() {
     if (!isSpawned || !spawnFern) return;
 
     if (isInConversation) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setIsWalking(false);
       return;
     }
@@ -281,6 +284,7 @@ export function FernPet() {
   // 5. Silent Typewriter Speech Bubble & Mouth Animation
   useEffect(() => {
     if (!fernSpeech) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setDisplayedSpeech('');
       setIsMouthOpen(false);
       return;
@@ -306,7 +310,8 @@ export function FernPet() {
 
       if (charsToShow > lastCharsCount) {
         if (charsToShow % 2 === 0) {
-          playTextBlip('fern', speechVolume);
+          // Read the live volume so changes in Settings apply immediately
+          playTextBlip('fern', useOSStore.getState().frierenConfig.speechVolume);
         }
         lastCharsCount = charsToShow;
       }
@@ -435,7 +440,7 @@ export function FernPet() {
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         width: containerWidth,
         height: scale,
-        zIndex: 5, // Sits in front of wallpaper, behind active windows
+        zIndex: 40, // Above desktop icons (10), below windows (100+)
         pointerEvents: 'none', // Clicking "through" Fern makes desktop shortcuts accessible
       }}
       className="relative flex items-center justify-center"
@@ -452,14 +457,13 @@ export function FernPet() {
               setActiveChatPartner('fern');
               setIsChatInputOpen(true);
             }}
-            className="absolute bottom-full mb-3 px-2.5 py-1.5 bg-zinc-950/85 border border-white/10 hover:border-rose-500/50 hover:bg-rose-950/20 text-rose-200 backdrop-blur-md rounded-lg shadow-xl text-[10px] font-bold tracking-wide uppercase flex items-center gap-1.5 cursor-pointer pointer-events-auto"
-            style={{
-              imageRendering: 'auto',
-              boxShadow: '0 8px 24px -6px rgba(0, 0, 0, 0.4)'
-            }}
+            className="absolute bottom-full mb-3 px-2.5 py-1 bg-surface text-fg border-2 border-line hover:bg-highlight hover:text-ink hover:border-ink rounded-xl shadow-doodle-sm text-2xs font-bold tracking-wide uppercase flex items-center gap-1.5 cursor-pointer pointer-events-auto whitespace-nowrap"
+            aria-label="Chat with Fern"
+            style={{ imageRendering: 'auto' }}
           >
-            <span className="px-1 py-0.5 bg-white/10 rounded text-[9px] border border-white/10">E</span>
-            Interact
+            <span className="hidden [@media(hover:hover)]:inline px-1 rounded-md border-2 border-current text-3xs">E</span>
+            <span className="hidden [@media(hover:hover)]:inline">Interact</span>
+            <span className="[@media(hover:hover)]:hidden">Tap to chat</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -472,29 +476,36 @@ export function FernPet() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-[#fcf9f2] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] rounded-2xl text-xs w-max max-w-[380px] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
+            role="status"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-surface-2 text-fg border-[2.5px] border-line shadow-doodle-md rounded-2xl text-xs w-max max-w-[min(380px,calc(100vw-2rem))] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
             style={{ 
               imageRendering: 'auto',
             }}
           >
             {isThinking && activeChatPartner === 'fern' ? (
               <div className="flex items-center justify-center gap-1.5 py-1 px-2">
-                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-fg rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 bg-fg rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 bg-fg rounded-full animate-bounce" />
               </div>
             ) : (
               displayedSpeech
             )}
             {/* Doodle speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-[#2d2a26]" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-[#fcf9f2] -mt-[1px]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-line" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-surface-2 -mt-[1px]" />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Fern Sprite Div */}
+      {/* Fern Sprite Div (tappable on touch devices, where the E key is not available) */}
       <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveChatPartner('fern');
+          setIsChatInputOpen(true);
+        }}
+        className="[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:cursor-pointer"
         style={{
           width: '100%',
           height: '100%',

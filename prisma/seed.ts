@@ -1,87 +1,46 @@
+/**
+ * Idempotent seed: creates the neutral placeholder profile row if it does not exist yet.
+ * It never creates projects, people or any other content, and never overwrites data.
+ *
+ *   npm run db:seed
+ */
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { PrismaClient } from "../src/generated/client/client";
-import { DUMMY_PROFILE, DUMMY_PROJECTS, DUMMY_SKILLS, DUMMY_EXPERIENCES } from '../src/lib/data';
+import { EMPTY_PROFILE } from "../src/lib/data";
 
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/portfolio_db?schema=public";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error("DATABASE_URL is not set. Run with e.g. `node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs prisma/seed.ts`.");
+  process.exit(1);
+}
+
 const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 async function main() {
-  console.log('================================================================');
-  console.log('🌱 Seeding database with initial DUMMY data (Alex Mercer)...');
-  console.log('================================================================');
-
-  // 1. Seed Profile Dummy Data
-  await prisma.profile.deleteMany();
+  const existing = await prisma.profile.findUnique({ where: { id: "1" } });
+  if (existing) {
+    console.log("Profile row already exists; nothing to seed.");
+    return;
+  }
   await prisma.profile.create({
     data: {
-      id: '1',
-      name: DUMMY_PROFILE.name,
-      title: DUMMY_PROFILE.title,
-      location: DUMMY_PROFILE.location,
-      email: DUMMY_PROFILE.email,
-      bio: DUMMY_PROFILE.bio,
-      githubUrl: 'https://github.com',
-      linkedinUrl: 'https://linkedin.com',
+      id: "1",
+      name: EMPTY_PROFILE.name,
+      title: EMPTY_PROFILE.title,
+      location: EMPTY_PROFILE.location,
+      email: EMPTY_PROFILE.email,
+      bio: EMPTY_PROFILE.bio,
     },
   });
-  console.log('✅ Seeded dummy profile: Alex Mercer');
-
-  // 2. Seed Projects Dummy Data
-  await prisma.project.deleteMany();
-  for (const project of DUMMY_PROJECTS) {
-    await prisma.project.create({
-      data: {
-        id: project.id,
-        title: project.title,
-        description: project.description,
-        tags: project.tags,
-        githubUrl: project.githubUrl || null,
-        liveUrl: project.liveUrl || null,
-        images: project.images || [],
-        featured: project.featured || false,
-      },
-    });
-  }
-  console.log(`✅ Seeded ${DUMMY_PROJECTS.length} dummy projects`);
-
-  // 3. Seed Skills Dummy Data
-  await prisma.skill.deleteMany();
-  for (const skillGroup of DUMMY_SKILLS) {
-    await prisma.skill.create({
-      data: {
-        category: skillGroup.category,
-        skills: skillGroup.skills,
-      },
-    });
-  }
-  console.log(`✅ Seeded ${DUMMY_SKILLS.length} dummy skill groups`);
-
-  // 4. Seed Experiences Dummy Data
-  await prisma.experience.deleteMany();
-  for (const exp of DUMMY_EXPERIENCES) {
-    await prisma.experience.create({
-      data: {
-        role: exp.role,
-        company: exp.company,
-        duration: exp.duration,
-        description: exp.description,
-      },
-    });
-  }
-  console.log(`✅ Seeded ${DUMMY_EXPERIENCES.length} dummy experience entries`);
-
-  console.log('================================================================');
-  console.log('🚀 Database seeding complete! You can edit these anytime in /admin');
-  console.log('================================================================');
+  console.log("Created the placeholder profile. Edit it in the Developer Hub.");
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seeding error:', e);
-    process.exit(1);
+    console.error("Seeding failed:", e instanceof Error ? e.message : e);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

@@ -1,5 +1,28 @@
 import { create } from 'zustand';
-import { PROFILE, PROJECTS, SKILLS, EXPERIENCES } from './data';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { EMPTY_PROFILE } from './data';
+import type { Profile, Project, SkillGroup, Experience, Education, Certification, PortfolioData } from './types';
+
+export interface OSNotification {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: number;
+  /** Optional app to open when the notification is clicked */
+  appId?: string;
+}
+
+export type DataStatus = 'loading' | 'ready' | 'error';
+
+export type DesktopIconSize = 'small' | 'medium' | 'large';
+export type DesktopIconSort = 'default' | 'name';
+
+export interface ConfirmOptions {
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** 'danger' renders the confirm button in the rose/danger style */
+  tone?: 'default' | 'danger';
+}
 
 export interface WindowState {
   id: string;
@@ -47,26 +70,42 @@ interface OSStore {
   toggleThemeMode: () => void;
   
   // Dynamic Data States
-  profile: { name: string; title: string; location: string; email: string; bio: string; githubUrl?: string; linkedinUrl?: string };
-  projects: any[];
-  skills: any[];
-  experiences: any[];
+  profile: Profile;
+  projects: Project[];
+  skills: SkillGroup[];
+  experiences: Experience[];
+  educations: Education[];
+  certifications: Certification[];
+  dataStatus: DataStatus;
   setSelectedProjectId: (id: string | null) => void;
   
   isLocked: boolean;
   isWidgetsOpen: boolean;
   isQuickSettingsOpen: boolean;
   isNotificationCenterOpen: boolean;
+  notifications: OSNotification[];
   unreadNotificationsCount: number;
   toggleNotificationCenter: () => void;
   closeNotificationCenter: () => void;
   clearNotificationsBadge: () => void;
+  pushNotification: (n: Omit<OSNotification, 'id' | 'createdAt'>) => void;
+  dismissNotification: (id: string) => void;
+  clearNotifications: () => void;
   confirmDialog: {
     isOpen: boolean;
     title: string;
     message: string;
     onConfirm: (() => void) | null;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    tone?: 'default' | 'danger';
   } | null;
+
+  // Desktop icon preferences (persisted)
+  desktopIconSize: DesktopIconSize;
+  desktopIconSort: DesktopIconSort;
+  setDesktopIconSize: (size: DesktopIconSize) => void;
+  setDesktopIconSort: (sort: DesktopIconSort) => void;
   
   // Actions
   openWindow: (id: string, title?: string) => void;
@@ -89,15 +128,17 @@ interface OSStore {
   setStartMenuSearchFocused: (focused: boolean) => void;
   toggleTaskView: () => void;
   closeTaskView: () => void;
-  showConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  showConfirm: (title: string, message: string, onConfirm: () => void, options?: ConfirmOptions) => void;
   closeConfirm: () => void;
   
   // Dynamic Data Actions
   fetchDatabaseData: () => Promise<void>;
-  setProfile: (profile: any) => void;
-  setProjects: (projects: any[]) => void;
-  setSkills: (skills: any[]) => void;
-  setExperiences: (experiences: any[]) => void;
+  setProfile: (profile: Profile) => void;
+  setProjects: (projects: Project[]) => void;
+  setSkills: (skills: SkillGroup[]) => void;
+  setExperiences: (experiences: Experience[]) => void;
+  setEducations: (educations: Education[]) => void;
+  setCertifications: (certifications: Certification[]) => void;
   
   // Window geometry actions
   updateWindowPosition: (id: string, x: number, y: number) => void;
@@ -126,7 +167,7 @@ const initialWindows: Record<string, WindowState> = {
   projector: { id: 'projector', title: 'Projector Screen', isOpen: false, isMinimized: false, isMaximized: false, zIndex: 1 },
 };
 
-export const useOSStore = create<OSStore>((set, get) => ({
+export const useOSStore = create<OSStore>()(persist((set, get) => ({
   windows: initialWindows,
   focusedWindowId: null,
   zIndexCounter: 10,
@@ -162,17 +203,25 @@ export const useOSStore = create<OSStore>((set, get) => ({
     set((state) => ({ themeMode: state.themeMode === 'light' ? 'dark' : 'light' }));
   },
 
-  // Initial Dynamic Data
-  profile: PROFILE,
-  projects: PROJECTS,
-  skills: SKILLS,
-  experiences: EXPERIENCES,
+  // Initial Dynamic Data (filled by fetchDatabaseData)
+  profile: EMPTY_PROFILE,
+  projects: [],
+  skills: [],
+  experiences: [],
+  educations: [],
+  certifications: [],
+  dataStatus: 'loading',
 
   // System toggles initial state
   isLocked: true,
   isWidgetsOpen: false,
   isQuickSettingsOpen: false,
   confirmDialog: null,
+
+  desktopIconSize: 'medium',
+  desktopIconSort: 'default',
+  setDesktopIconSize: (size) => set({ desktopIconSize: size }),
+  setDesktopIconSort: (sort) => set({ desktopIconSort: sort }),
 
   openWindow: (id, title) => {
     const nextZIndex = get().zIndexCounter + 1;
@@ -366,33 +415,31 @@ export const useOSStore = create<OSStore>((set, get) => ({
 
   // Dynamic Data Actions Implementation
   fetchDatabaseData: async () => {
+    set({ dataStatus: 'loading' });
     try {
-      const res = await fetch('/api/portfolio');
+      const res = await fetch('/api/portfolio', { cache: 'no-store' });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const data = await res.json();
-      if (!data || (!data.profile && !data.projects?.length)) {
-        throw new Error('API returned empty portfolio');
-      }
+      const data: PortfolioData = await res.json();
       set({
-        profile: data.profile || PROFILE,
-        projects: data.projects || PROJECTS,
-        skills: data.skills || SKILLS,
-        experiences: data.experiences || EXPERIENCES,
+        profile: data.profile || EMPTY_PROFILE,
+        projects: data.projects || [],
+        skills: data.skills || [],
+        experiences: data.experiences || [],
+        educations: data.educations || [],
+        certifications: data.certifications || [],
+        dataStatus: 'ready',
       });
     } catch (error) {
-      console.warn('Failed to fetch dynamic portfolio, using static fallback:', error);
-      set({
-        profile: PROFILE,
-        projects: PROJECTS,
-        skills: SKILLS,
-        experiences: EXPERIENCES,
-      });
+      console.warn('Failed to load portfolio data:', error);
+      set({ dataStatus: 'error' });
     }
   },
   setProfile: (profile) => set({ profile }),
   setProjects: (projects) => set({ projects }),
   setSkills: (skills) => set({ skills }),
   setExperiences: (experiences) => set({ experiences }),
+  setEducations: (educations) => set({ educations }),
+  setCertifications: (certifications) => set({ certifications }),
   setSelectedProjectId: (id) => set({ selectedProjectId: id }),
 
   // Window geometry action implementations
@@ -439,7 +486,8 @@ export const useOSStore = create<OSStore>((set, get) => ({
   setIsQuickSettingsOpen: (open) => set({ isQuickSettingsOpen: open }),
 
   isNotificationCenterOpen: false,
-  unreadNotificationsCount: 4,
+  notifications: [],
+  unreadNotificationsCount: 0,
   toggleNotificationCenter: () => {
     set((state) => ({
       isNotificationCenterOpen: !state.isNotificationCenterOpen,
@@ -455,6 +503,23 @@ export const useOSStore = create<OSStore>((set, get) => ({
   },
   clearNotificationsBadge: () => {
     set({ unreadNotificationsCount: 0 });
+  },
+  pushNotification: (n) => {
+    const notification: OSNotification = {
+      ...n,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: Date.now(),
+    };
+    set((state) => ({
+      notifications: [notification, ...state.notifications].slice(0, 20),
+      unreadNotificationsCount: state.isNotificationCenterOpen ? state.unreadNotificationsCount : state.unreadNotificationsCount + 1,
+    }));
+  },
+  dismissNotification: (id) => {
+    set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) }));
+  },
+  clearNotifications: () => {
+    set({ notifications: [], unreadNotificationsCount: 0 });
   },
 
   toggleQuickSettings: () => {
@@ -486,17 +551,32 @@ export const useOSStore = create<OSStore>((set, get) => ({
   unlockScreen: () => {
     set({ isLocked: false });
   },
-  showConfirm: (title, message, onConfirm) => {
+  showConfirm: (title, message, onConfirm, options) => {
     set({
       confirmDialog: {
         isOpen: true,
         title,
         message,
         onConfirm,
+        ...options,
       }
     });
   },
   closeConfirm: () => {
     set({ confirmDialog: null });
   },
+}), {
+  name: 'aura-os-settings',
+  version: 1,
+  storage: createJSONStorage(() => localStorage),
+  // Only user preferences survive a reload; window/session state always starts fresh.
+  partialize: (state) => ({
+    themeMode: state.themeMode,
+    wallpaper: state.wallpaper,
+    frierenConfig: state.frierenConfig,
+    desktopIconSize: state.desktopIconSize,
+    desktopIconSort: state.desktopIconSort,
+  }),
+  // Rehydrated manually in ThemeSync after mount to avoid SSR hydration mismatches.
+  skipHydration: true,
 }));

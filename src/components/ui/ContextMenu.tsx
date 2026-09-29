@@ -1,132 +1,146 @@
 'use client';
 
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronRight, 
-  Sparkles
-} from 'lucide-react';
-import { useOSStore } from '@/lib/store';
-import { 
-  DoodleWidgetsIcon,
-  DoodleEditPencilIcon,
-  DoodleHomeIcon,
-  DoodleFolderIcon,
-  DoodleTerminalIcon,
-  DoodleSettingsIcon,
-  DoodlePetIcon
-} from '@/components/ui/DoodleIcons';
+import React, { useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { RefreshCw, ArrowDownAZ, RotateCcw, Check } from 'lucide-react';
+import { useOSStore, type DesktopIconSize } from '@/lib/store';
+import { cx } from '@/components/ui/primitives';
+import { DoodleTerminalIcon, DoodleSettingsIcon, DoodleWidgetsIcon } from '@/components/ui/DoodleIcons';
 
 interface ContextMenuProps {
   isOpen: boolean;
   position: { x: number; y: number };
   onClose: () => void;
+  /** Re-fetch portfolio data and show visual feedback on the desktop */
+  onRefresh: () => void;
 }
 
-export function ContextMenu({ isOpen, position, onClose }: ContextMenuProps) {
-  const openWindow = useOSStore((state) => state.openWindow);
+const ICON_SIZES: Array<{ id: DesktopIconSize; label: string }> = [
+  { id: 'small', label: 'Small' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'large', label: 'Large' },
+];
+
+const itemClass =
+  'w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl border-2 border-transparent text-left text-xs font-bold cursor-pointer transition ' +
+  'text-fg hover:border-line hover:bg-surface-3 focus-visible:border-line focus-visible:bg-surface-3 outline-none';
+
+export function ContextMenu({ isOpen, position, onClose, onRefresh }: ContextMenuProps) {
+  const openWindow = useOSStore((s) => s.openWindow);
+  const desktopIconSize = useOSStore((s) => s.desktopIconSize);
+  const desktopIconSort = useOSStore((s) => s.desktopIconSort);
+  const setDesktopIconSize = useOSStore((s) => s.setDesktopIconSize);
+  const setDesktopIconSort = useOSStore((s) => s.setDesktopIconSort);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Focus the first item so the menu is keyboard-usable immediately
+  useEffect(() => {
+    if (isOpen) menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleRefresh = (e: React.MouseEvent) => {
+  const run = (fn: () => void) => (e: React.MouseEvent) => {
     e.stopPropagation();
+    fn();
     onClose();
-    const body = document.body;
-    body.style.opacity = '0.5';
-    setTimeout(() => {
-      body.style.opacity = '1';
-    }, 150);
   };
 
-  const handleOpenApp = (id: string, title: string) => {
-    openWindow(id, title);
-    onClose();
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    e.preventDefault();
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []);
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    let next = 0;
+    if (e.key === 'ArrowDown') next = (current + 1) % items.length;
+    if (e.key === 'ArrowUp') next = (current - 1 + items.length) % items.length;
+    if (e.key === 'End') next = items.length - 1;
+    items[next]?.focus();
   };
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: -5 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: -5 }}
-        transition={{ duration: 0.12, ease: 'easeOut' }}
-        style={{ top: position.y, left: position.x }}
-        className="fixed z-50 w-64 rounded-2xl border-[2.5px] border-[#2d2a26] bg-[#fffdfa] p-2.5 font-doodle text-xs text-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] backdrop-blur-xl select-none"
-        onClick={(e) => e.stopPropagation()}
+    <motion.div
+      ref={menuRef}
+      role="menu"
+      aria-label="Desktop menu"
+      initial={{ opacity: 0, scale: 0.95, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.12, ease: 'easeOut' }}
+      style={{ top: position.y, left: position.x }}
+      className="fixed z-[9000] w-64 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-2xl border-[2.5px] border-line bg-surface p-2 font-doodle text-xs text-fg shadow-doodle-md select-none"
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onKeyDown={handleKeyDown}
+    >
+      <button type="button" role="menuitem" onClick={run(onRefresh)} className={itemClass}>
+        <RefreshCw className="w-4 h-4" aria-hidden />
+        <span>Refresh</span>
+      </button>
+
+      <hr className="my-1.5 border-t-2 border-dashed border-line/40" />
+
+      <div className="px-3 pt-1 pb-1 text-2xs font-bold uppercase tracking-wider text-fg-muted flex items-center gap-1.5" aria-hidden>
+        <DoodleWidgetsIcon className="w-3.5 h-3.5" />
+        View: icon size
+      </div>
+      <div role="group" aria-label="Icon size" className="flex gap-1.5 px-2 pb-1.5">
+        {ICON_SIZES.map((s) => {
+          const active = desktopIconSize === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={active}
+              onClick={run(() => setDesktopIconSize(s.id))}
+              className={cx(
+                'flex-1 h-7 rounded-xl border-2 text-2xs font-bold cursor-pointer transition outline-none focus-visible:shadow-doodle-sm',
+                active ? 'bg-highlight text-ink border-ink shadow-doodle-xs' : 'bg-surface-2 text-fg border-line hover:bg-surface-3',
+              )}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        role="menuitemradio"
+        aria-checked={desktopIconSort === 'name'}
+        onClick={run(() => setDesktopIconSort('name'))}
+        className={itemClass}
       >
-        {/* Header Badge */}
-        <div className="px-3 py-1 font-doodle text-[11px] text-[#2d2a26] font-bold uppercase tracking-wider flex items-center justify-between border-b-2 border-dashed border-[#2d2a26]/30 mb-1.5 bg-amber-100/60 rounded-lg">
-          <span>Notebook Desktop</span>
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-        </div>
+        <ArrowDownAZ className="w-4 h-4" aria-hidden />
+        <span className="flex-1">Sort icons by name</span>
+        {desktopIconSort === 'name' && <Check className="w-3.5 h-3.5" aria-hidden />}
+      </button>
+      <button
+        type="button"
+        role="menuitemradio"
+        aria-checked={desktopIconSort === 'default'}
+        onClick={run(() => setDesktopIconSort('default'))}
+        className={itemClass}
+      >
+        <RotateCcw className="w-4 h-4" aria-hidden />
+        <span className="flex-1">Reset icon order</span>
+        {desktopIconSort === 'default' && <Check className="w-3.5 h-3.5" aria-hidden />}
+      </button>
 
-        {/* View Options */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-sky-100/70 rounded-xl cursor-pointer group transition font-doodle">
-          <div className="flex items-center gap-2.5">
-            <DoodleWidgetsIcon className="w-4 h-4" />
-            <span className="font-doodle text-xs font-bold">View Options</span>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-[#2d2a26]" />
-        </div>
+      <hr className="my-1.5 border-t-2 border-dashed border-line/40" />
 
-        {/* Sort Options */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-amber-100/70 rounded-xl cursor-pointer group transition font-doodle">
-          <div className="flex items-center gap-2.5">
-            <DoodleEditPencilIcon className="w-4 h-4" />
-            <span className="font-doodle text-xs font-bold">Sort by</span>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-[#2d2a26]" />
-        </div>
-
-        {/* Refresh */}
-        <button
-          onClick={handleRefresh}
-          className="w-full flex items-center gap-2.5 px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-emerald-100/70 rounded-xl text-left cursor-pointer transition font-doodle font-bold"
-        >
-          <DoodleHomeIcon className="w-4 h-4" />
-          <span>Refresh Desktop</span>
-        </button>
-
-        <hr className="my-1.5 border-t-2 border-dashed border-[#2d2a26]/30" />
-
-        {/* New Item */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-purple-100/70 rounded-xl cursor-pointer transition font-doodle font-bold">
-          <div className="flex items-center gap-2.5">
-            <DoodleFolderIcon className="w-4 h-4" />
-            <span>New Item</span>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-[#2d2a26]" />
-        </div>
-
-        <hr className="my-1.5 border-t-2 border-dashed border-[#2d2a26]/30" />
-
-        {/* Terminal */}
-        <button
-          onClick={() => handleOpenApp('terminal', 'Aura Terminal')}
-          className="w-full flex items-center gap-2.5 px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-indigo-100/70 rounded-xl text-left cursor-pointer transition font-doodle font-bold"
-        >
-          <DoodleTerminalIcon className="w-4 h-4" />
-          <span>Open in Terminal</span>
-        </button>
-
-        {/* Display Settings */}
-        <button
-          onClick={() => handleOpenApp('settings', 'Settings')}
-          className="w-full flex items-center gap-2.5 px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-blue-100/70 rounded-xl text-left cursor-pointer transition font-doodle font-bold"
-        >
-          <DoodleSettingsIcon className="w-4 h-4" />
-          <span>Display Settings</span>
-        </button>
-
-        {/* Personalize */}
-        <button
-          onClick={() => handleOpenApp('settings', 'Settings')}
-          className="w-full flex items-center gap-2.5 px-3 py-1.5 border-[2px] border-transparent hover:border-[#2d2a26] hover:bg-rose-100/70 rounded-xl text-left cursor-pointer transition font-doodle font-bold"
-        >
-          <DoodlePetIcon className="w-4 h-4" />
-          <span>Personalize Themes</span>
-        </button>
-      </motion.div>
-    </AnimatePresence>
+      <button type="button" role="menuitem" onClick={run(() => openWindow('terminal', 'Aura Terminal'))} className={itemClass}>
+        <DoodleTerminalIcon className="w-4 h-4" />
+        <span>Open Terminal</span>
+      </button>
+      <button type="button" role="menuitem" onClick={run(() => openWindow('settings', 'Settings'))} className={itemClass}>
+        <DoodleSettingsIcon className="w-4 h-4" />
+        <span>Personalize</span>
+      </button>
+    </motion.div>
   );
 }

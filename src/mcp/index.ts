@@ -1,193 +1,116 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import http from "http";
-import { parse } from "url";
-import { registerTools } from "./tools";
+import { createMcpServer } from "../lib/mcp";
+import { extractMcpKey, getMcpKeyStatus, isValidMcpKey } from "../lib/server/mcpAuth";
 
-// Initialize the MCP server instance
-const server = new McpServer({
-  name: "portwindows-admin-mcp",
-  version: "1.0.0",
-});
+/** One MCP server per SSE session (an McpServer can only hold one transport). */
+const sseSessions = new Map<string, { transport: SSEServerTransport; server: McpServer }>();
 
-// Register all CRUD and Stats tools
-registerTools(server);
-
-// Active SSE Transports Map by Session ID
-const sseTransports = new Map<string, SSEServerTransport>();
-
-// Helper function to validate MCP_API_KEY from env
-function validateMcpApiKey(req: http.IncomingMessage, parsedUrl: any): boolean {
-  const configuredKey = process.env.MCP_API_KEY;
-  // If no MCP_API_KEY is configured in env, allow access
-  if (!configuredKey || configuredKey.trim() === "") {
-    return true;
-  }
-
-  // 1. Check Authorization header ("Bearer <token>" or "<token>")
-  const authHeader = req.headers["authorization"] || req.headers["Authorization"];
-  if (typeof authHeader === "string") {
-    const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-    const token = bearerMatch ? bearerMatch[1].trim() : authHeader.trim();
-    if (token === configuredKey) {
-      return true;
-    }
-  }
-
-  // 2. Check x-api-key header
-  const xApiKey = req.headers["x-api-key"] || req.headers["X-Api-Key"];
-  if (typeof xApiKey === "string" && xApiKey.trim() === configuredKey) {
-    return true;
-  }
-
-  // 3. Check URL query parameters (?apiKey=... or ?api_key=...)
-  const queryKey = parsedUrl.query.apiKey || parsedUrl.query.api_key;
-  if (typeof queryKey === "string" && queryKey.trim() === configuredKey) {
-    return true;
-  }
-
-  return false;
+function sendJson(res: http.ServerResponse, status: number, body: unknown) {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(body));
 }
 
-async function main() {
-  const isStdioMode = process.argv.includes("--stdio");
+async function runStdio() {
+  // stdio is a local pipe owned by the MCP client process; there is no network surface to protect.
+  const server = createMcpServer();
+  await server.connect(new StdioServerTransport());
+  console.error("[MCP] Aura OS portfolio MCP server running on stdio");
+}
 
-  if (isStdioMode) {
-    // Standard IO mode for local desktop clients (Claude Desktop, Cursor, etc.)
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    console.error("[MCP] Portfolio Admin MCP Server running on stdio transport");
-    return;
+async function runHttp() {
+  const status = getMcpKeyStatus();
+  if (!status.ok) {
+    console.error(`[MCP] Refusing to start the network MCP server: ${status.reason}`);
+    console.error("[MCP] Set MCP_API_KEY to a long random value, e.g. `node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"`.");
+    process.exit(1);
   }
-
-  // Network HTTP Server (SSE & Streamable HTTP mode)
+  const apiKey = status.key;
   const PORT = parseInt(process.env.MCP_PORT || "3002", 10);
-  const isAuthRequired = !!(process.env.MCP_API_KEY && process.env.MCP_API_KEY.trim() !== "");
 
   const httpServer = http.createServer(async (req, res) => {
-    // CORS headers for remote clients
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, x-session-id");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, mcp-session-id, mcp-protocol-version");
 
     if (req.method === "OPTIONS") {
-      res.writeHead(200);
+      res.writeHead(204);
       res.end();
       return;
     }
 
-    const parsedUrl = parse(req.url || "", true);
-    const pathname = parsedUrl.pathname || "/";
+    const url = new URL(req.url || "/", "http://localhost");
+    const pathname = url.pathname;
 
-    // Enforce API Key Authentication if configured in env
-    if (pathname !== "/" && !validateMcpApiKey(req, parsedUrl)) {
-      console.error(`[MCP Auth Failed] Unauthorized request from ${req.socket.remoteAddress} on ${pathname}`);
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          error: "Unauthorized",
-          message: "Invalid or missing MCP_API_KEY. Provide it via header 'Authorization: Bearer <key>', 'x-api-key: <key>', or query param '?apiKey=<key>'.",
-        })
-      );
+    // Minimal unauthenticated health check. Reveals nothing about configuration.
+    if ((pathname === "/health" || pathname === "/") && req.method === "GET") {
+      sendJson(res, 200, { status: "ok" });
       return;
     }
 
-    // 1. Standard SSE Transport Endpoint (/sse & /messages) for mcp-remote
-    if (pathname === "/sse") {
-      console.error(`[MCP SSE] New client connection established from ${req.socket.remoteAddress}`);
-      
-      const sseTransport = new SSEServerTransport("/messages", res);
-      const sessionId = sseTransport.sessionId;
-      sseTransports.set(sessionId, sseTransport);
-
-      req.on("close", () => {
-        console.error(`[MCP SSE] Client session closed: ${sessionId}`);
-        sseTransports.delete(sessionId);
-      });
-
-      await server.connect(sseTransport);
+    const presented = extractMcpKey(req.headers, Object.fromEntries(url.searchParams));
+    if (!isValidMcpKey(presented, apiKey)) {
+      console.error(`[MCP] Unauthorized ${req.method} ${pathname} from ${req.socket.remoteAddress}`);
+      sendJson(res, 401, { error: "Unauthorized. Send the MCP API key as 'Authorization: Bearer <key>' or 'x-api-key: <key>'." });
       return;
     }
 
-    // Handle POST messages for SSE transport (/messages)
-    if (pathname === "/messages") {
-      const sessionId = parsedUrl.query.sessionId as string;
-      const sseTransport = sseTransports.get(sessionId);
-
-      if (!sseTransport) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: `Session not found for ID: ${sessionId}` }));
+    try {
+      // Legacy SSE transport (/sse + /messages), used by mcp-remote.
+      if (pathname === "/sse" && req.method === "GET") {
+        const transport = new SSEServerTransport("/messages", res);
+        const server = createMcpServer();
+        sseSessions.set(transport.sessionId, { transport, server });
+        res.on("close", () => {
+          sseSessions.delete(transport.sessionId);
+          void server.close();
+        });
+        await server.connect(transport);
         return;
       }
 
-      await sseTransport.handlePostMessage(req, res);
-      return;
+      if (pathname === "/messages" && req.method === "POST") {
+        const session = sseSessions.get(url.searchParams.get("sessionId") || "");
+        if (!session) {
+          sendJson(res, 404, { error: "Unknown or expired SSE session." });
+          return;
+        }
+        await session.transport.handlePostMessage(req, res);
+        return;
+      }
+
+      // Stateless Streamable HTTP transport: fresh server + transport per request.
+      if (pathname === "/mcp") {
+        const server = createMcpServer();
+        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+        res.on("close", () => {
+          void transport.close();
+          void server.close();
+        });
+        await server.connect(transport);
+        await transport.handleRequest(req, res);
+        return;
+      }
+
+      sendJson(res, 404, { error: "Not found." });
+    } catch (error) {
+      console.error("[MCP] request failed:", error instanceof Error ? error.message : error);
+      if (!res.headersSent) sendJson(res, 500, { error: "MCP request failed." });
     }
-
-    // 2. Streamable HTTP Transport Endpoint (/mcp)
-    if (pathname === "/mcp") {
-      console.error(`[MCP Streamable] Request received: ${req.method} ${req.url}`);
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
-        enableJsonResponse: true,
-      });
-
-      res.on("close", () => transport.close());
-      await server.connect(transport);
-      await transport.handleRequest(req, res);
-      return;
-    }
-
-    // 3. Health & Status Dashboard Endpoint (/)
-    if (pathname === "/") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify(
-          {
-            name: "portwindows-admin-mcp",
-            version: "1.0.0",
-            status: "ONLINE",
-            authenticationRequired: isAuthRequired,
-            endpoints: {
-              sse: `http://localhost:${PORT}/sse`,
-              mcp: `http://localhost:${PORT}/mcp`,
-            },
-            mcpRemoteUsage: {
-              command: "npx",
-              args: [
-                "-y",
-                "mcp-remote",
-                isAuthRequired
-                  ? `http://<YOUR_IP>:${PORT}/sse?apiKey=${process.env.MCP_API_KEY}`
-                  : `http://<YOUR_IP>:${PORT}/sse`,
-                "--allow-http",
-              ],
-            },
-          },
-          null,
-          2
-        )
-      );
-      return;
-    }
-
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Endpoint Not Found");
   });
 
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.error(`=======================================================`);
-    console.error(`🚀 Portfolio Admin MCP Server running on port ${PORT}`);
-    console.error(`🔒 API Key Auth  : ${isAuthRequired ? "ENABLED (via process.env.MCP_API_KEY)" : "DISABLED (No key set)"}`);
-    console.error(`🔗 SSE Endpoint : http://0.0.0.0:${PORT}/sse`);
-    console.error(`🔗 MCP Endpoint : http://0.0.0.0:${PORT}/mcp`);
-    console.error(`=======================================================`);
+    console.error(`[MCP] Aura OS portfolio MCP server listening on port ${PORT} (API key required)`);
+    console.error(`[MCP]   Streamable HTTP: http://localhost:${PORT}/mcp`);
+    console.error(`[MCP]   SSE:             http://localhost:${PORT}/sse`);
   });
 }
 
+const main = process.argv.includes("--stdio") ? runStdio : runHttp;
 main().catch((err) => {
-  console.error("Fatal error starting Portfolio Admin MCP Server:", err);
+  console.error("[MCP] Fatal error:", err instanceof Error ? err.message : err);
   process.exit(1);
 });

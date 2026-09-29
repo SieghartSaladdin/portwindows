@@ -5,27 +5,25 @@ interface ContextMenuPosition {
   y: number;
 }
 
+/** Must match the rendered menu: ContextMenu is `w-64` (256px). Height is an upper bound. */
+export const CONTEXT_MENU_WIDTH = 256;
+export const CONTEXT_MENU_HEIGHT = 330;
+const EDGE_GAP = 8;
+
 export function useContextMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<ContextMenuPosition>({ x: 0, y: 0 });
 
   const handleContextMenu = useCallback((e: MouseEvent) => {
     e.preventDefault();
-    
-    const menuWidth = 240;
-    const menuHeight = 220;
-    
-    let x = e.clientX;
-    let y = e.clientY;
-    
-    // Clamp to prevent screen overflow
-    if (x + menuWidth > window.innerWidth) {
-      x = window.innerWidth - menuWidth - 10;
-    }
-    if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 10;
-    }
-    
+
+    const maxX = window.innerWidth - CONTEXT_MENU_WIDTH - EDGE_GAP;
+    const maxY = window.innerHeight - CONTEXT_MENU_HEIGHT - EDGE_GAP;
+
+    // Clamp so the whole menu stays on screen (and never goes negative on tiny viewports)
+    const x = Math.max(EDGE_GAP, Math.min(e.clientX, maxX));
+    const y = Math.max(EDGE_GAP, Math.min(e.clientY, maxY));
+
     setPosition({ x, y });
     setIsOpen(true);
   }, []);
@@ -35,14 +33,21 @@ export function useContextMenu() {
   }, []);
 
   useEffect(() => {
-    // Left click anywhere closes the context menu
-    const handleOutsideClick = () => {
-      if (isOpen) closeMenu();
+    if (!isOpen) return;
+
+    // Left click anywhere or Escape closes the context menu
+    const handleOutsideClick = () => closeMenu();
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMenu();
     };
 
     document.addEventListener('click', handleOutsideClick);
+    window.addEventListener('keydown', handleKey);
+    window.addEventListener('resize', handleOutsideClick);
     return () => {
       document.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('keydown', handleKey);
+      window.removeEventListener('resize', handleOutsideClick);
     };
   }, [isOpen, closeMenu]);
 

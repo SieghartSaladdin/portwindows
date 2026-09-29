@@ -2,208 +2,186 @@
 
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useOSStore } from '@/lib/store';
-import { FileText, Folder, Terminal, Settings, Gamepad2, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { useOSStore, type WindowState } from '@/lib/store';
+import { APP_BY_ID } from '@/hooks/appRegistry';
+import { EmptyState, IconButton } from '@/components/ui/primitives';
+import { DoodleWidgetsIcon } from '@/components/ui/DoodleIcons';
+
+/** Abstract doodle "sketch" of an app window, drawn with tokens so it works in both themes. */
+function AppPreview({ id }: { id: string }) {
+  const line = 'h-1.5 rounded-full bg-line/30';
+  switch (id) {
+    case 'terminal':
+      return (
+        <div className="w-full h-full p-3 flex flex-col gap-1.5 font-mono text-3xs text-fg-muted">
+          <span>visitor@aura-os:~$ help</span>
+          <span className="w-2/3 h-1.5 rounded-full bg-mint" />
+          <span className="w-1/2 h-1.5 rounded-full bg-line/30" />
+          <span className="w-3/4 h-1.5 rounded-full bg-line/30" />
+        </div>
+      );
+    case 'projects':
+      return (
+        <div className="w-full h-full p-3 grid grid-cols-3 gap-2 content-start">
+          {['bg-sky', 'bg-peach', 'bg-mint', 'bg-lilac', 'bg-rose', 'bg-highlight'].map((c) => (
+            <span key={c} className={`h-8 rounded-lg border-2 border-line ${c}`} />
+          ))}
+        </div>
+      );
+    case 'settings':
+    case 'admin':
+      return (
+        <div className="w-full h-full p-3 flex gap-2">
+          <div className="w-1/4 flex flex-col gap-1.5 border-r-2 border-dashed border-line/40 pr-2">
+            <span className="h-2 rounded-full bg-highlight" />
+            <span className={line} />
+            <span className={line} />
+            <span className={line} />
+          </div>
+          <div className="flex-1 flex flex-col gap-1.5">
+            <span className="w-1/3 h-2 rounded-full bg-line/40" />
+            <span className="h-6 rounded-lg border-2 border-line bg-surface-2" />
+            <span className="h-6 rounded-lg border-2 border-line bg-surface-2" />
+          </div>
+        </div>
+      );
+    case 'projector':
+      return (
+        <div className="w-full h-full p-3 flex items-center justify-center">
+          <span className="w-3/4 h-3/4 rounded-lg border-2 border-line bg-sky/60" />
+        </div>
+      );
+    case 'bio':
+    case 'frieren':
+    default:
+      return (
+        <div className="w-full h-full p-3 flex flex-col gap-1.5">
+          <span className="w-10 h-10 rounded-full border-2 border-line bg-peach mb-1" />
+          <span className="w-2/3 h-2 rounded-full bg-line/40" />
+          <span className={`w-5/6 ${line}`} />
+          <span className={`w-1/2 ${line}`} />
+        </div>
+      );
+  }
+}
 
 export function TaskView() {
-  const { 
-    windows, 
-    taskViewOpen, 
-    closeTaskView, 
-    focusWindow, 
-    closeWindow 
-  } = useOSStore();
+  const windows = useOSStore((s) => s.windows);
+  const taskViewOpen = useOSStore((s) => s.taskViewOpen);
+  const closeTaskView = useOSStore((s) => s.closeTaskView);
+  const focusWindow = useOSStore((s) => s.focusWindow);
+  const closeWindow = useOSStore((s) => s.closeWindow);
+  const focusedWindowId = useOSStore((s) => s.focusedWindowId);
 
-  // Handle ESC key to close Task View
   useEffect(() => {
     if (!taskViewOpen) return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeTaskView();
-      }
+      if (e.key === 'Escape') closeTaskView();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [taskViewOpen, closeTaskView]);
 
-  if (!taskViewOpen) return null;
-
-  const openWindows = Object.values(windows).filter((w) => w.isOpen);
-
-  const appIcons: Record<string, { title: string; icon: React.ReactNode }> = {
-    bio: { title: 'Bio.txt - TextEdit', icon: <FileText className="w-4 h-4 text-emerald-400" /> },
-    projects: { title: 'Projects', icon: <Folder className="w-4 h-4 text-amber-400" /> },
-    terminal: { title: 'Aura Terminal', icon: <Terminal className="w-4 h-4 text-indigo-400" /> },
-    settings: { title: 'Settings', icon: <Settings className="w-4 h-4 text-blue-400" /> },
-    frieren: { title: 'Frieren.exe', icon: <Gamepad2 className="w-4 h-4 text-rose-400" /> },
-  };
-
-  const getAppPreview = (id: string) => {
-    switch (id) {
-      case 'bio':
-        return (
-          <div className="w-full h-full bg-zinc-900 p-3.5 flex flex-col gap-2 font-mono text-[8px] text-slate-300 leading-normal select-none overflow-hidden">
-            <div className="border-b border-zinc-800 pb-1 text-slate-500">Bio.txt - TextEdit</div>
-            <div className="flex flex-col gap-1 mt-1">
-              <div className="w-2/3 h-1.5 bg-emerald-500/20 rounded"></div>
-              <div className="w-5/6 h-1.5 bg-zinc-700/30 rounded"></div>
-              <div className="w-1/2 h-1.5 bg-zinc-700/30 rounded"></div>
-              <div className="w-3/4 h-1.5 bg-zinc-700/30 rounded"></div>
-            </div>
-          </div>
-        );
-      case 'projects':
-        return (
-          <div className="w-full h-full bg-zinc-950 p-3.5 flex flex-col gap-2.5 select-none overflow-hidden">
-            <div className="text-[9px] font-bold text-slate-300">Projects Explorer</div>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <div className="flex items-center gap-1.5 bg-white/5 p-1 rounded border border-white/5">
-                <Folder className="w-3 h-3 text-amber-400" />
-                <span className="text-[7.5px] text-slate-300 truncate">FrierenApp</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white/5 p-1 rounded border border-white/5">
-                <Folder className="w-3 h-3 text-amber-400" />
-                <span className="text-[7.5px] text-slate-300 truncate">WebAudio</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-white/5 p-1 rounded border border-white/5">
-                <Folder className="w-3 h-3 text-amber-400" />
-                <span className="text-[7.5px] text-slate-300 truncate">Portfolio</span>
-              </div>
-            </div>
-          </div>
-        );
-      case 'terminal':
-        return (
-          <div className="w-full h-full bg-black p-3.5 flex flex-col gap-1 font-mono text-[7px] text-slate-300 select-none overflow-hidden">
-            <div className="text-zinc-500">AuraOS Command Terminal [Build 1.0.4]</div>
-            <div className="text-zinc-500">visitor@aura-os:~$ npm run dev</div>
-            <div className="text-emerald-400 mt-1">&gt; Compiled successfully</div>
-            <div className="text-slate-400">Ready on http://localhost:3000</div>
-          </div>
-        );
-      case 'settings':
-        return (
-          <div className="w-full h-full bg-zinc-900 p-3.5 flex gap-2 select-none overflow-hidden">
-            <div className="w-10 border-r border-zinc-800 flex flex-col gap-1 pr-1.5">
-              <div className="w-full h-2 bg-blue-500/20 rounded"></div>
-              <div className="w-3/4 h-1.5 bg-zinc-800 rounded"></div>
-              <div className="w-2/3 h-1.5 bg-zinc-800 rounded"></div>
-            </div>
-            <div className="flex-1 flex flex-col gap-2">
-              <div className="w-1/3 h-2 bg-slate-300/30 rounded mb-1"></div>
-              <div className="h-6 bg-white/5 rounded border border-white/5 p-1 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded bg-blue-500"></span>
-                <span className="w-12 h-1.5 bg-zinc-700/40 rounded"></span>
-              </div>
-            </div>
-          </div>
-        );
-      case 'frieren':
-        return (
-          <div className="w-full h-full bg-zinc-950 p-3.5 flex flex-col gap-2 select-none overflow-hidden">
-            <div className="flex justify-between items-center pb-1 border-b border-zinc-900">
-              <span className="text-[8px] font-bold text-rose-300">Frieren.exe Dashboard</span>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center bg-white/5 p-1 rounded">
-                <span className="text-[7px] text-slate-300">Spawn Character</span>
-                <span className="w-4 h-2 rounded-full bg-rose-500"></span>
-              </div>
-              <div className="flex flex-col gap-0.5 mt-0.5">
-                <span className="text-[6px] text-slate-500">Character Size (64px)</span>
-                <div className="w-full h-1 bg-zinc-800 rounded-full relative">
-                  <div className="absolute left-0 top-0 bottom-0 bg-rose-500 w-1/2 rounded-full"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      default:
-        return (
-          <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-xs text-slate-500 select-none">
-            Application Preview
-          </div>
-        );
-    }
-  };
+  // Every open window in the store (admin, projector and any future app included)
+  const openWindows: WindowState[] = Object.values(windows)
+    .filter((w) => w.isOpen)
+    .sort((a, b) => b.zIndex - a.zIndex);
 
   return (
-    <div
-      onClick={closeTaskView}
-      className="fixed inset-0 z-45 flex flex-col items-center justify-center p-6 sm:p-12 backdrop-blur-xl bg-slate-950/70 select-none"
-    >
-      {/* Centered open windows view */}
-      <div className="flex-1 w-full max-w-5xl flex flex-col justify-center min-h-0 py-8">
-        <h2 className="text-sm font-semibold text-slate-300 mb-6 text-center tracking-wide uppercase">
-          Open Windows
-        </h2>
+    <AnimatePresence>
+      {taskViewOpen && (
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Task view"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            closeTaskView();
+          }}
+          className="fixed inset-x-0 top-0 bottom-taskbar z-[8990] bg-doodle-paper text-fg flex flex-col items-center p-4 sm:p-10 select-none font-doodle overflow-y-auto"
+        >
+          <div className="w-full max-w-5xl flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <DoodleWidgetsIcon className="w-6 h-6" />
+              Open windows
+              <span className="text-xs text-fg-muted font-bold">({openWindows.length})</span>
+            </h2>
+            <IconButton
+              label="Close task view"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeTaskView();
+              }}
+            >
+              <X className="w-3.5 h-3.5" />
+            </IconButton>
+          </div>
 
-        {openWindows.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 overflow-y-auto max-h-[360px] p-2">
-            {openWindows.map((w) => {
-              const meta = appIcons[w.id] || { title: w.title, icon: null };
-              return (
-                <div
-                  key={w.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    focusWindow(w.id);
-                  }}
-                  className="flex flex-col rounded-xl border border-white/5 bg-zinc-900/40 hover:bg-zinc-800/50 hover:border-white/10 hover:shadow-2xl transition duration-200 group relative aspect-[16/10] overflow-hidden"
-                >
-                  {/* Card Title Bar */}
-                  <div className="flex items-center justify-between p-2.5 bg-black/30 border-b border-white/5 z-10">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {meta.icon}
-                      <span className="text-[10px] font-bold text-slate-200 truncate pr-4">
-                        {meta.title}
-                      </span>
-                    </div>
+          {openWindows.length > 0 ? (
+            <ul className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {openWindows.map((w) => {
+                const meta = APP_BY_ID[w.id];
+                const title = meta?.title ?? w.title;
+                const Glyph = meta?.Icon;
+                const isFocused = focusedWindowId === w.id && !w.isMinimized;
+                return (
+                  <li key={w.id} className="relative">
                     <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        focusWindow(w.id);
+                        closeTaskView();
+                      }}
+                      aria-label={`Switch to ${title}${w.isMinimized ? ' (minimized)' : ''}`}
+                      className={`w-full flex flex-col rounded-2xl border-[2.5px] bg-surface overflow-hidden text-left cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-doodle-lg aspect-[16/10] ${
+                        isFocused ? 'border-ink shadow-doodle-md ring-0' : 'border-line shadow-doodle-sm'
+                      }`}
+                    >
+                      <span className={`flex items-center gap-2 px-3 py-2 pr-10 border-b-2 border-line ${isFocused ? 'bg-highlight text-ink' : 'bg-surface-2 text-fg'}`}>
+                        {Glyph && <Glyph className="w-4 h-4 shrink-0" />}
+                        <span className="text-xs font-bold truncate">{title}</span>
+                        {w.isMinimized && <span className="text-3xs uppercase tracking-wider font-bold opacity-70 shrink-0">minimized</span>}
+                      </span>
+                      <span className="flex-1 min-h-0 block">
+                        <AppPreview id={w.id} />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         closeWindow(w.id);
                       }}
-                      className="p-1 rounded-md hover:bg-red-500/20 text-slate-400 hover:text-red-200 transition"
-                      title="Close Window"
+                      aria-label={`Close ${title}`}
+                      title="Close window"
+                      className="absolute top-1.5 right-2 w-6 h-6 rounded-lg border-2 border-line bg-surface hover:bg-rose hover:text-ink hover:border-ink flex items-center justify-center cursor-pointer text-fg"
                     >
                       <X className="w-3 h-3" />
                     </button>
-                  </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="w-full max-w-md rounded-2xl border-[2.5px] border-line bg-surface shadow-doodle-md">
+              <EmptyState
+                icon={<DoodleWidgetsIcon className="w-8 h-8" />}
+                title="No open windows"
+                message="Open an app from the desktop, the taskbar or the Start menu and it will show up here."
+              />
+            </div>
+          )}
 
-                  {/* Card Content Preview Area */}
-                  <div className="flex-1 min-h-0 relative bg-black/10">
-                    {getAppPreview(w.id)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-2">
-            <span className="text-xl">🔲</span>
-            <div className="text-xs">No active windows open on this desktop.</div>
-          </div>
-        )}
-      </div>
-
-      {/* Desktops bar at the bottom */}
-      <div className="flex items-center gap-4 mt-auto pt-6 border-t border-white/5 w-full max-w-5xl justify-center z-10">
-        <div className="flex flex-col items-center gap-1.5 p-2 px-6 rounded-xl bg-white/10 border border-white/10 shadow-md">
-          <span className="text-[10px] font-extrabold text-white tracking-wide uppercase">Desktop 1</span>
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            confirm("Multiple virtual desktops are simulated in Desktop 1.");
-          }}
-          className="flex flex-col items-center gap-1.5 p-2 px-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-[10px] font-bold tracking-wide uppercase transition cursor-default"
-        >
-          <span>+ New Desktop</span>
-        </button>
-      </div>
-    </div>
+          <p className="mt-6 text-2xs text-fg-muted">Press Escape or click the background to go back.</p>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

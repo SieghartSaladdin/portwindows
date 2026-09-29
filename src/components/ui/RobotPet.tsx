@@ -19,7 +19,7 @@ export function RobotPet() {
     themeMode
   } = useOSStore();
   const isDark = themeMode === 'dark';
-  const { isSpawned, scale, speechVolume } = frierenConfig;
+  const { isSpawned, scale } = frierenConfig;
 
   const isActivePartner = activeChatPartner === 'robot';
   const isInConversation = isActivePartner && (isChatInputOpen || !!robotSpeech || isThinking);
@@ -37,6 +37,7 @@ export function RobotPet() {
   // Initial spawn point on left side of taskbar (slightly to the right of the edge widgets)
   useEffect(() => {
     if (isSpawned && typeof window !== 'undefined') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setPosition({
         x: 190,
         y: window.innerHeight - scale - 120,
@@ -118,12 +119,12 @@ export function RobotPet() {
 
     if (openedApp) {
       const assistantSpeeches: Record<string, string> = {
-        bio: "Accessing biography log... Frieren's long history is stored in Bio.txt!",
-        projects: "Projects database loaded! Click on any folder to view full details.",
+        bio: "Bio.txt loaded! Here you can read about the developer, their experience and how to get in touch.",
+        projects: "Projects loaded! Pick any project to see its details and links.",
         terminal: "Terminal shell active. Type 'help' or 'neofetch' to explore!",
         settings: "Control Panel loaded. Let me know if you need help adjusting settings!",
         frieren: "Frieren.exe character panel loaded. Let's configure the companion pets!",
-        admin: "Warning: Restricted Developer Hub. Please authenticate via PIN code.",
+        admin: "Developer Hub is for the site owner. Sign in with your admin username and password.",
       };
 
       const comment = assistantSpeeches[openedApp];
@@ -199,6 +200,7 @@ export function RobotPet() {
   // Typewriter Text Effect & Mouth Animation
   useEffect(() => {
     if (!robotSpeech) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setDisplayedSpeech('');
       setIsMouthOpen(false);
       return;
@@ -223,7 +225,8 @@ export function RobotPet() {
 
       if (charsToShow > lastCharsCount) {
         if (charsToShow % 2 === 0) {
-          playTextBlip('robot', speechVolume);
+          // Read the live volume so changes in Settings apply immediately
+          playTextBlip('robot', useOSStore.getState().frierenConfig.speechVolume);
         }
         lastCharsCount = charsToShow;
       }
@@ -254,7 +257,7 @@ export function RobotPet() {
       if (animFrameId) cancelAnimationFrame(animFrameId);
       if (bubbleTimeoutRef.current) clearTimeout(bubbleTimeoutRef.current);
     };
-  }, [robotSpeech, setRobotSpeech, speechVolume]);
+  }, [robotSpeech, setRobotSpeech]);
 
   if (!isSpawned) return null;
 
@@ -262,6 +265,16 @@ export function RobotPet() {
   return (
     <motion.div
       id="robot-pet"
+      role="button"
+      tabIndex={0}
+      aria-label="Chat with HelperBot"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setActiveChatPartner('robot');
+          setIsChatInputOpen(true);
+        }
+      }}
       onClick={(e) => {
         e.stopPropagation();
         setActiveChatPartner('robot');
@@ -281,7 +294,7 @@ export function RobotPet() {
         position: 'absolute',
         width: containerWidth,
         height: scale,
-        zIndex: 30, // Render on top of icons grid and other pets for clicks
+        zIndex: 40, // Above desktop icons (10), below windows (100+)
         cursor: 'pointer',
         pointerEvents: 'auto',
       }}
@@ -300,14 +313,13 @@ export function RobotPet() {
               setIsChatInputOpen(true);
             }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full mb-3 px-2.5 py-1.5 bg-zinc-950/85 border border-white/10 hover:border-blue-500/50 hover:bg-blue-950/20 text-blue-200 backdrop-blur-md rounded-lg shadow-xl text-[10px] font-bold tracking-wide uppercase flex items-center gap-1.5 cursor-pointer pointer-events-auto"
-            style={{
-              imageRendering: 'auto',
-              boxShadow: '0 8px 24px -6px rgba(0, 0, 0, 0.4)'
-            }}
+            className="absolute bottom-full mb-3 px-2.5 py-1 bg-surface text-fg border-2 border-line hover:bg-highlight hover:text-ink hover:border-ink rounded-xl shadow-doodle-sm text-2xs font-bold tracking-wide uppercase flex items-center gap-1.5 cursor-pointer pointer-events-auto whitespace-nowrap"
+            aria-label="Chat with HelperBot"
+            style={{ imageRendering: 'auto' }}
           >
-            <span className="px-1 py-0.5 bg-white/10 rounded text-[9px] border border-white/10">E</span>
-            Interact
+            <span className="hidden [@media(hover:hover)]:inline px-1 rounded-md border-2 border-current text-3xs">E</span>
+            <span className="hidden [@media(hover:hover)]:inline">Interact</span>
+            <span className="[@media(hover:hover)]:hidden">Tap to chat</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -320,23 +332,24 @@ export function RobotPet() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 10 }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-[#fcf9f2] text-[#2d2a26] border-[2.5px] border-[#2d2a26] shadow-[4px_4px_0px_0px_#2d2a26] rounded-2xl text-xs w-max max-w-[380px] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
+            role="status"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-surface-2 text-fg border-[2.5px] border-line shadow-doodle-md rounded-2xl text-xs w-max max-w-[min(380px,calc(100vw-2rem))] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
             style={{ 
               imageRendering: 'auto',
             }}
           >
             {isThinking && isActivePartner ? (
               <div className="flex items-center justify-center gap-1.5 py-1 px-2">
-                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-2 h-2 bg-[#2d2a26] rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-fg rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="w-2 h-2 bg-fg rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="w-2 h-2 bg-fg rounded-full animate-bounce" />
               </div>
             ) : (
               displayedSpeech
             )}
             {/* Doodle speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-[#2d2a26]" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-[#fcf9f2] -mt-[1px]" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-line" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-surface-2 -mt-[1px]" />
           </motion.div>
         )}
       </AnimatePresence>

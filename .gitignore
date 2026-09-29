@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# user uploads (UPLOAD_DIR)
+/uploads/
+
+# IDE / AI assistants
+.claude/

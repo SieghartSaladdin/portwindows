@@ -1,122 +1,143 @@
 'use client';
 
 import React from 'react';
-import { Folder, Wrench, Briefcase, User } from 'lucide-react';
+import { useOSStore, type DataStatus } from '@/lib/store';
+import { Badge, Button, Card } from '@/components/ui/primitives';
+import { DoodleBioIcon, DoodleFolderIcon, DoodleHomeIcon } from '@/components/ui/DoodleIcons';
+import { ButtonSpinner, SectionHeader } from './AdminShared';
+import { DoodleBadgeIcon, DoodleBriefcaseIcon, DoodleGradCapIcon, DoodleMailIcon, DoodleSparkIcon, IconCheck } from './AdminIcons';
+import { useAdminApi } from './useAdminApi';
+import type { AdminTab } from './AdminSidebar';
 
-interface OverviewTabProps {
-  isDark: boolean;
-  projectsCount: number;
-  skillsCount: number;
-  experiencesCount: number;
-  profileName: string;
+function StatusBadge({ status, ok, fail }: { status: DataStatus; ok: string; fail: string }) {
+  if (status === 'loading') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-2xs text-fg-muted">
+        <ButtonSpinner /> Checking…
+      </span>
+    );
+  }
+  return <Badge tone={status === 'ready' ? 'mint' : 'rose'}>{status === 'ready' ? ok : fail}</Badge>;
 }
 
-export function OverviewTab({
-  isDark,
-  projectsCount,
-  skillsCount,
-  experiencesCount,
-  profileName,
-}: OverviewTabProps) {
+export function OverviewTab({ onNavigate }: { onNavigate: (tab: AdminTab) => void }) {
+  const { username, messages, messagesStatus, reloadMessages } = useAdminApi();
+  const profile = useOSStore((s) => s.profile);
+  const projects = useOSStore((s) => s.projects);
+  const skills = useOSStore((s) => s.skills);
+  const experiences = useOSStore((s) => s.experiences);
+  const educations = useOSStore((s) => s.educations);
+  const certifications = useOSStore((s) => s.certifications);
+  const dataStatus = useOSStore((s) => s.dataStatus);
+  const fetchDatabaseData = useOSStore((s) => s.fetchDatabaseData);
+
+  const unread = messages.filter((m) => !m.read).length;
+  const loadingData = dataStatus === 'loading';
+
+  const stats: { tab: AdminTab; label: string; value: number; icon: React.ReactNode; pending: boolean }[] = [
+    { tab: 'projects', label: 'Projects', value: projects.length, icon: <DoodleFolderIcon className="w-7 h-7" />, pending: loadingData },
+    { tab: 'skills', label: 'Skill groups', value: skills.length, icon: <DoodleSparkIcon className="w-7 h-7" />, pending: loadingData },
+    { tab: 'experiences', label: 'Experiences', value: experiences.length, icon: <DoodleBriefcaseIcon className="w-7 h-7" />, pending: loadingData },
+    { tab: 'educations', label: 'Education', value: educations.length, icon: <DoodleGradCapIcon className="w-7 h-7" />, pending: loadingData },
+    { tab: 'certifications', label: 'Certifications', value: certifications.length, icon: <DoodleBadgeIcon className="w-7 h-7" />, pending: loadingData },
+    { tab: 'messages', label: 'Unread messages', value: unread, icon: <DoodleMailIcon className="w-7 h-7" />, pending: messagesStatus === 'loading' },
+  ];
+
+  const checklist: { done: boolean; label: string }[] = [
+    { done: Boolean(profile.name?.trim() && profile.title?.trim()), label: 'Name and title' },
+    { done: Boolean(profile.bio?.trim()), label: 'Bio' },
+    { done: Boolean(profile.email?.trim()), label: 'Contact email' },
+    { done: Boolean(profile.avatarUrl), label: 'Avatar' },
+    { done: Boolean(profile.resumeUrl), label: 'CV / résumé' },
+    { done: Boolean(profile.githubUrl || profile.linkedinUrl || profile.websiteUrl), label: 'At least one link' },
+  ];
+  const missing = checklist.filter((c) => !c.done).length;
+
   return (
-    <div className="flex flex-col gap-6 font-mono">
-      <div className="pb-3 border-b-2 border-[#2d2a26] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-amber-500 text-lg font-bold">✏</span>
-          <div>
-            <h1 className={`text-base font-extrabold uppercase tracking-wider ${isDark ? 'text-white' : 'text-[#2d2a26]'}`}>Database Control Panel</h1>
-            <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-zinc-600'}`}>Live metrics and health check of your portfolio database.</p>
-          </div>
-        </div>
+    <div className="flex flex-col gap-5">
+      <SectionHeader
+        title="Overview"
+        description={username ? `Signed in as ${username}.` : 'Everything in your portfolio at a glance.'}
+        icon={<DoodleHomeIcon className="w-6 h-6" />}
+      />
 
-        {/* Pastel Yellow Badge */}
-        <span className="bg-[#fef08a] text-[#2d2a26] border-2 border-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26] font-extrabold rounded-full px-3 py-1 text-xs">
-          ✦ PostgreSQL Online
-        </span>
+      <div className="grid grid-cols-2 @xl:grid-cols-3 gap-3 @xl:gap-4">
+        {stats.map((s) => (
+          <button
+            key={s.tab}
+            type="button"
+            onClick={() => onNavigate(s.tab)}
+            className="text-left rounded-2xl border-[2.5px] border-line bg-surface text-fg shadow-doodle-sm p-3.5 flex items-center gap-3 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-doodle-md"
+          >
+            <span className="w-11 h-11 shrink-0 rounded-xl border-2 border-line bg-surface-2 flex items-center justify-center">{s.icon}</span>
+            <span className="min-w-0 flex flex-col">
+              <span className="text-xl font-bold tabular-nums leading-tight">{s.pending ? <ButtonSpinner /> : s.value}</span>
+              <span className="text-2xs font-bold uppercase tracking-wider text-fg-muted truncate">{s.label}</span>
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* Stats Grid with Bold Outlines & Shadows */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-        <div className={`p-5 border-[2.5px] border-[#2d2a26] rounded-2xl flex items-center gap-4 shadow-[4px_4px_0px_0px_#2d2a26] ${
-          isDark ? 'bg-zinc-900/90 text-white' : 'bg-[#fcf9f2] text-[#2d2a26]'
-        }`}>
-          <div className="w-10 h-10 rounded-xl bg-[#fef08a] border-2 border-[#2d2a26] flex items-center justify-center text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]">
-            <Folder className="w-5 h-5" />
-          </div>
-          <div>
-            <div className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-[#2d2a26]'}`}>{projectsCount}</div>
-            <div className={`text-[10px] uppercase font-extrabold tracking-wider ${isDark ? 'text-[#fef08a]' : 'text-amber-900'}`}>Projects</div>
-          </div>
-        </div>
+      <div className="grid gap-4 @2xl:grid-cols-2">
+        <Card shadow="sm" className="p-4 flex flex-col gap-3">
+          <h2 className="text-sm font-bold">Status</h2>
+          <dl className="flex flex-col gap-2.5 text-xs">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b-2 border-dashed border-line">
+              <dt className="text-fg-muted">Portfolio data</dt>
+              <dd><StatusBadge status={dataStatus} ok="Loaded" fail="Not reachable" /></dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 pb-2 border-b-2 border-dashed border-line">
+              <dt className="text-fg-muted">Messages inbox</dt>
+              <dd><StatusBadge status={messagesStatus} ok="Loaded" fail="Not reachable" /></dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-fg-muted">Session</dt>
+              <dd><Badge tone="mint">Signed in</Badge></dd>
+            </div>
+          </dl>
+          {(dataStatus === 'error' || messagesStatus === 'error') && (
+            <Button
+              size="sm"
+              className="self-start"
+              onClick={() => {
+                if (dataStatus === 'error') void fetchDatabaseData();
+                if (messagesStatus === 'error') void reloadMessages();
+              }}
+            >
+              Try again
+            </Button>
+          )}
+        </Card>
 
-        <div className={`p-5 border-[2.5px] border-[#2d2a26] rounded-2xl flex items-center gap-4 shadow-[4px_4px_0px_0px_#2d2a26] ${
-          isDark ? 'bg-zinc-900/90 text-white' : 'bg-[#fcf9f2] text-[#2d2a26]'
-        }`}>
-          <div className="w-10 h-10 rounded-xl bg-[#fef08a] border-2 border-[#2d2a26] flex items-center justify-center text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]">
-            <Wrench className="w-5 h-5" />
+        <Card shadow="sm" className="p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold">Profile checklist</h2>
+            {missing === 0 ? <Badge tone="mint">Complete</Badge> : <Badge tone="peach">{missing} to go</Badge>}
           </div>
-          <div>
-            <div className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-[#2d2a26]'}`}>{skillsCount}</div>
-            <div className={`text-[10px] uppercase font-extrabold tracking-wider ${isDark ? 'text-[#fef08a]' : 'text-amber-900'}`}>Skill Groups</div>
-          </div>
-        </div>
-
-        <div className={`p-5 border-[2.5px] border-[#2d2a26] rounded-2xl flex items-center gap-4 shadow-[4px_4px_0px_0px_#2d2a26] ${
-          isDark ? 'bg-zinc-900/90 text-white' : 'bg-[#fcf9f2] text-[#2d2a26]'
-        }`}>
-          <div className="w-10 h-10 rounded-xl bg-[#fef08a] border-2 border-[#2d2a26] flex items-center justify-center text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]">
-            <Briefcase className="w-5 h-5" />
-          </div>
-          <div>
-            <div className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-[#2d2a26]'}`}>{experiencesCount}</div>
-            <div className={`text-[10px] uppercase font-extrabold tracking-wider ${isDark ? 'text-[#fef08a]' : 'text-amber-900'}`}>Experiences</div>
-          </div>
-        </div>
-
-        <div className={`p-5 border-[2.5px] border-[#2d2a26] rounded-2xl flex items-center gap-4 shadow-[4px_4px_0px_0px_#2d2a26] ${
-          isDark ? 'bg-zinc-900/90 text-white' : 'bg-[#fcf9f2] text-[#2d2a26]'
-        }`}>
-          <div className="w-10 h-10 rounded-xl bg-[#fef08a] border-2 border-[#2d2a26] flex items-center justify-center text-[#2d2a26] shadow-[2px_2px_0px_0px_#2d2a26]">
-            <User className="w-5 h-5" />
-          </div>
-          <div>
-            <div className={`text-xs font-extrabold truncate max-w-[110px] ${isDark ? 'text-white' : 'text-[#2d2a26]'}`}>{profileName || 'Admin'}</div>
-            <div className={`text-[10px] uppercase font-extrabold tracking-wider ${isDark ? 'text-[#fef08a]' : 'text-amber-900'}`}>Profile</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Database diagnostics status */}
-      <div className={`border-[2.5px] border-[#2d2a26] rounded-2xl p-5 flex flex-col gap-4 shadow-[4px_4px_0px_0px_#2d2a26] ${
-        isDark ? 'bg-zinc-900/90 text-white' : 'bg-[#fcf9f2] text-[#2d2a26]'
-      }`}>
-        <div className="flex items-center justify-between pb-3 border-b-2 border-[#2d2a26]">
-          <span className={`text-xs font-extrabold flex items-center gap-2 uppercase tracking-wider ${isDark ? 'text-[#fef08a]' : 'text-amber-900'}`}>
-            <span>✏</span> Diagnostics Check
-          </span>
-          <span className="bg-[#fef08a] text-[#2d2a26] border border-[#2d2a26] text-[10px] font-extrabold px-3 py-0.5 rounded-full shadow-[2px_2px_0px_0px_#2d2a26]">
-            ONLINE
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-xs font-mono">
-          <div className="flex justify-between py-2 border-b-2 border-[#2d2a26]">
-            <span className={isDark ? 'text-slate-400' : 'text-zinc-600'}>Database Engine</span>
-            <span className={`font-extrabold ${isDark ? 'text-slate-200' : 'text-[#2d2a26]'}`}>PostgreSQL (portfolio_db)</span>
-          </div>
-          <div className="flex justify-between py-2 border-b-2 border-[#2d2a26]">
-            <span className={isDark ? 'text-slate-400' : 'text-zinc-600'}>ORM Manager</span>
-            <span className={`font-extrabold ${isDark ? 'text-slate-200' : 'text-[#2d2a26]'}`}>Prisma Client</span>
-          </div>
-          <div className="flex justify-between py-2 border-b-2 border-[#2d2a26]">
-            <span className={isDark ? 'text-slate-400' : 'text-zinc-600'}>Profile Config</span>
-            <span className={`font-extrabold ${isDark ? 'text-slate-200' : 'text-[#2d2a26]'}`}>Upsert Active</span>
-          </div>
-          <div className="flex justify-between py-2 border-b-2 border-[#2d2a26]">
-            <span className={isDark ? 'text-slate-400' : 'text-zinc-600'}>Workspace Sync</span>
-            <span className={`font-extrabold ${isDark ? 'text-slate-200' : 'text-[#2d2a26]'}`}>React Linked</span>
-          </div>
-        </div>
+          <ul className="flex flex-col gap-1.5 text-xs">
+            {checklist.map((c) => (
+              <li key={c.label} className="flex items-center gap-2">
+                <span
+                  className={
+                    c.done
+                      ? 'w-5 h-5 rounded-md border-2 border-ink bg-mint text-ink flex items-center justify-center'
+                      : 'w-5 h-5 rounded-md border-2 border-line bg-surface-2'
+                  }
+                  aria-hidden
+                >
+                  {c.done && <IconCheck className="w-3 h-3" />}
+                </span>
+                <span className={c.done ? 'text-fg' : 'text-fg-muted'}>{c.label}</span>
+                <span className="sr-only">{c.done ? '(done)' : '(missing)'}</span>
+              </li>
+            ))}
+          </ul>
+          {missing > 0 && (
+            <Button size="sm" className="self-start" icon={<DoodleBioIcon className="w-4 h-4" />} onClick={() => onNavigate('profile')}>
+              Edit profile
+            </Button>
+          )}
+        </Card>
       </div>
     </div>
   );
