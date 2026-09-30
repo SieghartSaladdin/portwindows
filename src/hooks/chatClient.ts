@@ -106,6 +106,14 @@ function runAction(action: ChatAction): string | null {
   return null;
 }
 
+/** Longest line shown in a speech bubble; anything longer is clipped so the bubble stays readable. */
+const MAX_BUBBLE_CHARS = 140;
+
+export function toBubbleText(text: string): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > MAX_BUBBLE_CHARS ? clean.slice(0, MAX_BUBBLE_CHARS - 1).trimEnd() + '…' : clean;
+}
+
 const PARTNER_NAMES: Record<ChatPartner, string> = { robot: 'HelperBot', fern: 'Fern', stark: 'Stark' };
 
 export function partnerName(partner: ChatPartner) {
@@ -124,11 +132,19 @@ function setSpeech(partner: ChatPartner, text: string | null) {
  * stores capped history and pushes a notification when the companion did something.
  * Throws ChatError with a user-facing message on failure.
  */
-export async function sendCompanionMessage(message: string, partner: ChatPartner, signal?: AbortSignal): Promise<string> {
+export async function sendCompanionMessage(
+  message: string,
+  partner: ChatPartner,
+  signal?: AbortSignal,
+  options: { asFrieren?: boolean } = {},
+): Promise<string> {
   const history = readHistory(partner);
+  const store = useOSStore.getState();
   // Show the user's message immediately
   writeHistory(partner, [...history, { role: 'user', content: message }]);
   setSpeech(partner, null);
+  // The visitor is playing Frieren: what they type is what she says out loud
+  if (options.asFrieren) store.setFrierenSpeech(toBubbleText(message));
 
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(), CHAT_TIMEOUT_MS);
@@ -140,12 +156,19 @@ export async function sendCompanionMessage(message: string, partner: ChatPartner
     res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history: history.slice(-MAX_SENT_MESSAGES), partner }),
+      body: JSON.stringify({
+        message,
+        history: history.slice(-MAX_SENT_MESSAGES),
+        partner,
+        // E = the visitor plays Frieren; a plain click chats as themselves
+        speaker: options.asFrieren ? 'frieren' : 'visitor',
+      }),
       signal: timeout.signal,
     });
   } catch {
     // Roll back the optimistic user message so a retry does not duplicate it
     writeHistory(partner, history);
+    if (options.asFrieren) useOSStore.getState().setFrierenSpeech(null);
     if (signal?.aborted) throw new ChatError('Request cancelled.', -1);
     if (timeout.signal.aborted) throw new ChatError(`${partnerName(partner)} took too long to answer. Please try again.`, 408);
     throw new ChatError(friendlyError(0), 0);
@@ -163,10 +186,13 @@ export async function sendCompanionMessage(message: string, partner: ChatPartner
 
   if (!res.ok) {
     writeHistory(partner, history);
+    if (options.asFrieren) useOSStore.getState().setFrierenSpeech(null);
     throw new ChatError(friendlyError(res.status, data.error), res.status);
   }
 
   const reply = cleanReply(data.text ?? '') || '...';
+  // Turn-taking: Frieren's line gives way to the partner's answer
+  if (options.asFrieren) useOSStore.getState().setFrierenSpeech(null);
   setSpeech(partner, reply);
   writeHistory(partner, [...history, { role: 'user', content: message }, { role: 'assistant', content: reply }]);
 

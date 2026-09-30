@@ -6,7 +6,7 @@ import { LlmNotConfiguredError } from '@/lib/agents/main_agent/nodes';
 import { jsonError, parseJsonBody } from '@/lib/server/http';
 import { getLlmConfig, LLM_TIMEOUT_MS } from '@/lib/server/llm';
 import { createRateLimiter, getClientIp } from '@/lib/server/rateLimit';
-import { chatSchema } from '@/lib/server/validation';
+import { chatSchema, defaultSpeaker } from '@/lib/server/validation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 75;
@@ -22,7 +22,7 @@ function isTimeout(error: unknown): boolean {
   return error.name === 'AbortError' || error.name === 'TimeoutError' || /abort|timed? ?out/i.test(error.message);
 }
 
-/** POST { message, history?, partner? } -> { text, action } */
+/** POST { message, history?, partner?, speaker? } -> { text, action } */
 export async function POST(request: Request) {
   const limit = chatLimiter.consume(getClientIp(request));
   if (!limit.allowed) {
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
   const parsed = await parseJsonBody(request, chatSchema);
   if (!parsed.ok) return parsed.response;
   const { message, history, partner } = parsed.data;
+  const speaker = parsed.data.speaker ?? defaultSpeaker(partner);
 
   if (!getLlmConfig()) return jsonError(503, NOT_CONFIGURED);
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
 
   try {
     const finalState = await graph.invoke(
-      { messages, partner },
+      { messages, partner, speaker },
       { signal: AbortSignal.timeout(LLM_TIMEOUT_MS), recursionLimit: 12 },
     );
     const text = stripMarkdown(finalState.output || '');

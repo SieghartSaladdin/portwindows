@@ -11,7 +11,7 @@ import type { AgentState, ChatAction } from "./state";
 export class LlmNotConfiguredError extends Error {}
 
 const DATA_UNAVAILABLE =
-  "PORTFOLIO DATA UNAVAILABLE: the database could not be reached. Tell the visitor you cannot access the portfolio details right now and suggest trying again later. Do not guess.";
+  "PORTFOLIO DATA UNAVAILABLE: the database could not be reached. Tell the person you are talking to that you cannot access the portfolio details right now and suggest trying again later. Do not guess.";
 
 const WALLPAPER_IDS = WALLPAPERS.map((w) => w.id) as [string, ...string[]];
 
@@ -156,7 +156,7 @@ export async function callModel(state: AgentState) {
   if (!config) throw new LlmNotConfiguredError("LLM is not configured");
   const model = createChatModel(config);
 
-  const chatMessages = [new SystemMessage(getSystemPrompt(state.partner, state.contextData)), ...state.messages];
+  const chatMessages = [new SystemMessage(getSystemPrompt(state.partner, state.speaker, state.contextData)), ...state.messages];
   const runnable = state.partner === "robot" ? model.bindTools(TOOLS) : model;
   const response = await runnable.invoke(chatMessages);
 

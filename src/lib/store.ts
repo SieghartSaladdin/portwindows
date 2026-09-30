@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { EMPTY_PROFILE } from './data';
+import { pickGreeting } from './greetings';
 import type { Profile, Project, SkillGroup, Experience, Education, Certification, PortfolioData } from './types';
 
 export interface OSNotification {
@@ -39,6 +40,8 @@ export interface WindowState {
   snapPosition?: 'left' | 'right' | 'top' | 'bottom' | null;
 }
 
+export type ChatMode = 'frieren' | 'user';
+
 interface OSStore {
   windows: Record<string, WindowState>;
   focusedWindowId: string | null;
@@ -61,6 +64,8 @@ interface OSStore {
   isThinking: boolean;
   isChatInputOpen: boolean;
   activeChatPartner: 'fern' | 'stark' | 'robot' | null;
+  /** 'frieren': the visitor plays Frieren (started with E). 'user': plain chat from a click, no Frieren involved. */
+  chatMode: ChatMode;
   recentlyOpened: string[];
   startMenuSearchFocused: boolean;
   taskViewOpen: boolean;
@@ -125,6 +130,7 @@ interface OSStore {
   setIsThinking: (thinking: boolean) => void;
   setIsChatInputOpen: (open: boolean) => void;
   setActiveChatPartner: (partner: 'fern' | 'stark' | 'robot' | null) => void;
+  openChat: (partner: 'fern' | 'stark' | 'robot', mode: ChatMode) => void;
   setStartMenuSearchFocused: (focused: boolean) => void;
   toggleTaskView: () => void;
   closeTaskView: () => void;
@@ -189,6 +195,7 @@ export const useOSStore = create<OSStore>()(persist((set, get) => ({
   isThinking: false,
   isChatInputOpen: false,
   activeChatPartner: null,
+  chatMode: 'user',
   recentlyOpened: ['bio', 'projects', 'terminal'],
   startMenuSearchFocused: false,
   taskViewOpen: false,
@@ -402,6 +409,17 @@ export const useOSStore = create<OSStore>()(persist((set, get) => ({
   },
   setActiveChatPartner: (partner) => {
     set({ activeChatPartner: partner });
+  },
+  openChat: (partner, mode) => {
+    const alreadyOpen = get().isChatInputOpen && get().activeChatPartner === partner;
+    set({ activeChatPartner: partner, chatMode: mode, isChatInputOpen: true });
+    // Pressing E puts the visitor in Frieren's shoes, so the partner opens with a greeting
+    if (mode === 'frieren' && !alreadyOpen) {
+      const greeting = pickGreeting(partner);
+      if (partner === 'fern') set({ fernSpeech: greeting });
+      else if (partner === 'stark') set({ starkSpeech: greeting });
+      else set({ robotSpeech: greeting });
+    }
   },
   setStartMenuSearchFocused: (focused) => {
     set({ startMenuSearchFocused: focused });

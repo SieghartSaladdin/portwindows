@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/lib/store';
 import { playTextBlip } from '@/lib/audio';
+import { SpeechBubble, useBubbleSide } from '@/components/ui/SpeechBubble';
 import {
   buildGroundedPetSheet,
   PET_CELL_HEIGHT,
@@ -22,11 +23,16 @@ export function FernPet() {
     setIsChatInputOpen,
     activeChatPartner,
     setActiveChatPartner,
+    openChat,
+    chatMode,
     isThinking
   } = useOSStore();
   const { isSpawned, spawnFern, scale } = frierenConfig;
 
   const isInConversation = activeChatPartner === 'fern' && (isChatInputOpen || !!frierenSpeech || !!fernSpeech || isThinking);
+
+  // Bubbles extend away from Frieren while the two are talking
+  const bubbleSide = useBubbleSide('fern-pet', 'frieren-pet', isInConversation && chatMode === 'frieren');
 
   // NPC states
   const [position, setPosition] = useState({ x: 500, y: 300 });
@@ -366,7 +372,7 @@ export function FernPet() {
         setIsNear(near);
 
         // Auto-leave if Frieren walks too far away
-        if (!near && dist > 180 && isChatInputOpen && activeChatPartner === 'fern') {
+        if (!near && dist > 180 && isChatInputOpen && activeChatPartner === 'fern' && useOSStore.getState().chatMode === 'frieren') {
           setIsChatInputOpen(false);
           setActiveChatPartner(null);
           setFrierenSpeech(null);
@@ -397,14 +403,13 @@ export function FernPet() {
 
       if (e.key.toLowerCase() === 'e') {
         e.preventDefault();
-        setActiveChatPartner('fern');
-        setIsChatInputOpen(true);
+        openChat('fern', 'frieren');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isNear, isChatInputOpen, setIsChatInputOpen, setActiveChatPartner]);
+  }, [isNear, isChatInputOpen, openChat]);
 
   if (!isSpawned || !spawnFern) return null;
 
@@ -454,8 +459,7 @@ export function FernPet() {
             exit={{ opacity: 0, y: 5, scale: 0.8 }}
             onClick={(e) => {
               e.stopPropagation();
-              setActiveChatPartner('fern');
-              setIsChatInputOpen(true);
+              openChat('fern', 'frieren');
             }}
             className="absolute bottom-full mb-3 px-2.5 py-1 bg-surface text-fg border-2 border-line hover:bg-highlight hover:text-ink hover:border-ink rounded-xl shadow-doodle-sm text-2xs font-bold tracking-wide uppercase flex items-center gap-1.5 cursor-pointer pointer-events-auto whitespace-nowrap"
             aria-label="Chat with Fern"
@@ -471,17 +475,7 @@ export function FernPet() {
       {/* Speech Bubble Overlay */}
       <AnimatePresence>
         {(fernSpeech || (isThinking && activeChatPartner === 'fern')) && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            role="status"
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-surface-2 text-fg border-[2.5px] border-line shadow-doodle-md rounded-2xl text-xs w-max max-w-[min(380px,calc(100vw-2rem))] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
-            style={{ 
-              imageRendering: 'auto',
-            }}
-          >
+          <SpeechBubble side={bubbleSide}>
             {isThinking && activeChatPartner === 'fern' ? (
               <div className="flex items-center justify-center gap-1.5 py-1 px-2">
                 <span className="w-2 h-2 bg-fg rounded-full animate-bounce [animation-delay:-0.3s]" />
@@ -491,10 +485,7 @@ export function FernPet() {
             ) : (
               displayedSpeech
             )}
-            {/* Doodle speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-line" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-surface-2 -mt-[1px]" />
-          </motion.div>
+          </SpeechBubble>
         )}
       </AnimatePresence>
 
@@ -502,8 +493,7 @@ export function FernPet() {
       <div
         onClick={(e) => {
           e.stopPropagation();
-          setActiveChatPartner('fern');
-          setIsChatInputOpen(true);
+          openChat('fern', 'user');
         }}
         className="[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:cursor-pointer"
         style={{

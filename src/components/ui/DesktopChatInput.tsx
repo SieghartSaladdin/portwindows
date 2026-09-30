@@ -14,6 +14,7 @@ import {
   type ChatMessage,
   type ChatPartner,
 } from '@/hooks/chatClient';
+import type { ChatMode } from '@/lib/store';
 
 const SUGGESTIONS = [
   { label: 'Who are you?', prompt: 'Who are you and what can you help me with?', icon: Sparkles },
@@ -51,27 +52,35 @@ export function DesktopChatInput() {
   const isChatInputOpen = useOSStore((s) => s.isChatInputOpen);
   const activeChatPartner = useOSStore((s) => s.activeChatPartner);
   const partner: ChatPartner = activeChatPartner || 'robot';
+  const mode = useOSStore((s) => s.chatMode);
   // Static, flex-centred positioning layer: keeps centring out of the animated element's transform
   // so the bar slides in/out smoothly instead of jumping.
   return (
     <div className="absolute inset-x-0 top-4 sm:top-16 z-[9000] flex justify-center px-2 pointer-events-none">
       <AnimatePresence mode="wait">
         {/* Remount per partner so each conversation starts from its own stored history */}
-        {isChatInputOpen && <ChatBar key={partner} partner={partner} />}
+        {isChatInputOpen && <ChatBar key={`${partner}-${mode}`} partner={partner} mode={mode} />}
       </AnimatePresence>
     </div>
   );
 }
 
-function ChatBar({ partner }: { partner: ChatPartner }) {
+/** How long a plain-click exchange stays under the input before it fades away. */
+function flashDuration(reply: string) {
+  return Math.min(5000, Math.max(3000, 1500 + reply.length * 25));
+}
+
+function ChatBar({ partner, mode }: { partner: ChatPartner; mode: ChatMode }) {
   const [text, setText] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => readHistory(partner));
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Plain-click chats (no Frieren bubble) show the latest exchange under the input for a few seconds
+  const [flash, setFlash] = useState<{ user: string; reply: string | null } | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isThinking = useOSStore((s) => s.isThinking);
   const setIsThinking = useOSStore((s) => s.setIsThinking);
-  const setIsChatInputOpen = useOSStore((s) => s.setIsChatInputOpen);
   const name = getPartnerName(partner);
   const elapsed = useElapsed(isThinking);
 
@@ -98,8 +107,12 @@ function ChatBar({ partner }: { partner: ChatPartner }) {
   }, []);
 
   const handleLeave = useCallback(() => {
-    setIsChatInputOpen(false);
-  }, [setIsChatInputOpen]);
+    const s = useOSStore.getState();
+    s.setIsChatInputOpen(false);
+    // Nobody is mid-sentence: the conversation is over, so drop the partner (pets stop reacting to it)
+    const partnerSpeech = partner === 'fern' ? s.fernSpeech : partner === 'stark' ? s.starkSpeech : s.robotSpeech;
+    if (!partnerSpeech && !s.frierenSpeech && !s.isThinking) s.setActiveChatPartner(null);
+  }, [partner]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -111,17 +124,27 @@ function ChatBar({ partner }: { partner: ChatPartner }) {
 
   // Cancel an in-flight request if the bar is closed
   useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+  }, []);
 
   const send = async (prompt: string) => {
     const message = prompt.trim();
     if (!message || useOSStore.getState().isThinking) return;
     setError(null);
     setIsThinking(true);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    setFlash(mode === 'user' ? { user: message, reply: null } : null);
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      await sendCompanionMessage(message, partner, controller.signal);
+      const reply = await sendCompanionMessage(message, partner, controller.signal, { asFrieren: mode === 'frieren' });
+      if (mode === 'user') {
+        setFlash({ user: message, reply });
+        flashTimerRef.current = setTimeout(() => setFlash(null), flashDuration(reply));
+      }
     } catch (err) {
+      setFlash(null);
       if (err instanceof ChatError && err.status === -1) return; // cancelled by the visitor
       const msg = err instanceof ChatError ? err.message : 'Something went wrong. Please try again.';
       setError(msg);
@@ -311,6 +334,37 @@ function ChatBar({ partner }: { partner: ChatPartner }) {
           Close
         </button>
       </div>
+
+      {/* Plain-click chat: the latest exchange, gone again after a few seconds */}
+      <AnimatePresence>
+        {flash && (
+          <motion.div
+            key="flash"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+            aria-live="polite"
+            className="mt-2.5 flex flex-col gap-1.5"
+          >
+            <p
+              data-selectable
+              className="self-end max-w-[88%] px-3.5 py-2 text-xs leading-relaxed border-2 rounded-2xl rounded-tr-sm shadow-doodle-sm whitespace-pre-wrap break-words bg-sky text-ink border-ink"
+            >
+              {flash.user}
+            </p>
+            {flash.reply && (
+              <p
+                data-selectable
+                className="self-start max-w-[88%] px-3.5 py-2 text-xs leading-relaxed border-2 rounded-2xl rounded-tl-sm shadow-doodle-sm whitespace-pre-wrap break-words bg-surface-2 text-fg border-line"
+              >
+                <span className="block text-3xs text-fg-muted mb-0.5 font-bold uppercase tracking-wider">{name}</span>
+                {flash.reply}
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Status line: thinking progress or a clear error */}
       <div aria-live="polite" className="min-h-0 [&:not(:empty)]:mt-2.5">

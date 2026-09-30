@@ -198,6 +198,15 @@ export const loginSchema = z.object({
 export const CHAT_PARTNERS = ['robot', 'stark', 'fern'] as const;
 export type ChatPartner = (typeof CHAT_PARTNERS)[number];
 
+/** Who is talking: Frieren (the visitor pressed E and plays her) or the plain visitor. */
+export const CHAT_SPEAKERS = ['frieren', 'visitor'] as const;
+export type ChatSpeaker = (typeof CHAT_SPEAKERS)[number];
+
+/** Fern and Stark have always treated the speaker as Frieren; HelperBot treats them as a visitor. */
+export function defaultSpeaker(partner: ChatPartner): ChatSpeaker {
+  return partner === 'robot' ? 'visitor' : 'frieren';
+}
+
 export const chatSchema = z.object({
   message: z
     .string({ error: 'message is required' })
@@ -215,6 +224,7 @@ export const chatSchema = z.object({
     .optional()
     .default([]),
   partner: z.enum(CHAT_PARTNERS).optional().default('robot'),
+  speaker: z.enum(CHAT_SPEAKERS).optional(),
 });
 
 // ---------------------------------------------------------------------------

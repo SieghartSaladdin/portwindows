@@ -3,6 +3,9 @@ import { BaseMessage } from "@langchain/core/messages";
 
 export type ChatPartner = 'robot' | 'stark' | 'fern';
 
+/** Who is talking to the partner: Frieren (the visitor plays her) or the plain visitor. */
+export type ChatSpeaker = 'frieren' | 'visitor';
+
 /** UI action the client may perform after a HelperBot reply. */
 export type ChatAction =
   | { type: 'open_window'; target: string; projectId?: string }
@@ -16,6 +19,7 @@ export const GraphState = Annotation.Root({
     default: () => [],
   }),
   partner: Annotation<ChatPartner>(),
+  speaker: Annotation<ChatSpeaker>(),
   contextData: Annotation<string>(),
   /** Absolute http(s) URLs present in the portfolio data; the only links open_link may open. */
   allowedLinks: Annotation<string[]>({
