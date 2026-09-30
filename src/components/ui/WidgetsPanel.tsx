@@ -50,8 +50,7 @@ function WidgetsContent() {
   const openWindow = useOSStore((s) => s.openWindow);
   const setSelectedProjectId = useOSStore((s) => s.setSelectedProjectId);
   const closeWidgets = useOSStore((s) => s.closeWidgets);
-  const setActiveChatPartner = useOSStore((s) => s.setActiveChatPartner);
-  const setIsChatInputOpen = useOSStore((s) => s.setIsChatInputOpen);
+  const openChat = useOSStore((s) => s.openChat);
   const { time, fullDate } = useDateTime();
   const { days, monthLabel } = useCalendar();
 
@@ -241,8 +240,7 @@ function WidgetsContent() {
               className="underline decoration-dashed font-bold cursor-pointer"
               onClick={() => {
                 closeWidgets();
-                setActiveChatPartner('robot');
-                setIsChatInputOpen(true);
+                openChat('robot', 'user');
               }}
             >
               Chat with the robot

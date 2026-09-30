@@ -168,8 +168,7 @@ export function Taskbar() {
             if (s.isChatInputOpen && s.activeChatPartner === 'robot') {
               s.setIsChatInputOpen(false);
             } else {
-              s.setActiveChatPartner('robot');
-              s.setIsChatInputOpen(true);
+              s.openChat('robot', 'user');
             }
           }}
           aria-label="Chat with HelperBot"

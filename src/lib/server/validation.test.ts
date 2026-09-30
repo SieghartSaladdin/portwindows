@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   chatSchema,
+  defaultSpeaker,
   contactSchema,
   formatZodError,
   isAllowedUrl,
@@ -85,6 +86,12 @@ test('contact form rules', () => {
 
 test('chat input rules', () => {
   assert.equal(chatSchema.parse({ message: 'hi' }).partner, 'robot');
+  assert.equal(chatSchema.parse({ message: 'hi' }).speaker, undefined);
+  assert.equal(chatSchema.parse({ message: 'hi', speaker: 'frieren' }).speaker, 'frieren');
+  assert.equal(chatSchema.safeParse({ message: 'hi', speaker: 'god' }).success, false);
+  assert.equal(defaultSpeaker('robot'), 'visitor');
+  assert.equal(defaultSpeaker('fern'), 'frieren');
+  assert.equal(defaultSpeaker('stark'), 'frieren');
   assert.equal(chatSchema.safeParse({ message: '' }).success, false);
   assert.equal(chatSchema.safeParse({ message: 'x'.repeat(2001) }).success, false);
   assert.equal(chatSchema.safeParse({ message: 'hi', partner: 'frieren' }).success, false);

@@ -1,9 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type Transition } from 'framer-motion';
 import { useOSStore } from '@/lib/store';
 import { playTextBlip } from '@/lib/audio';
+import { PET_FLOOR_HEIGHT } from '@/lib/petSprite';
+import { RobotCanvas } from '@/components/ui/RobotCanvas';
+import { SpeechBubble, useBubbleSide } from '@/components/ui/SpeechBubble';
+
+const FLY_TRANSITION: Transition = {
+  type: 'spring',
+  damping: 18,
+  stiffness: 30,
+  mass: 1.2,
+};
 
 export function RobotPet() {
   const { 
@@ -14,6 +24,8 @@ export function RobotPet() {
     setIsChatInputOpen,
     activeChatPartner,
     setActiveChatPartner,
+    openChat,
+    chatMode,
     isThinking,
     windows,
     themeMode
@@ -23,26 +35,34 @@ export function RobotPet() {
 
   const isActivePartner = activeChatPartner === 'robot';
   const isInConversation = isActivePartner && (isChatInputOpen || !!robotSpeech || isThinking);
+  // Only Frieren's conversations stop the robot. A plain click chat lets it keep flying or walking.
+  const pausesMovement = isInConversation && chatMode === 'frieren';
+  const bubbleSide = useBubbleSide('robot-pet', 'frieren-pet', pausesMovement);
 
   // States
   const [position, setPosition] = useState({ x: 800, y: 300 });
-  const [direction, setDirection] = useState<'left' | 'right'>('left');
-  const [isMouthOpen, setIsMouthOpen] = useState(false);
+  const [travel, setTravel] = useState<Transition>(FLY_TRANSITION);
   const [displayedSpeech, setDisplayedSpeech] = useState('');
   const [isNear, setIsNear] = useState(false);
   const bubbleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Character being typed right now, read by the canvas to shape the mouth
+  const speechCharRef = useRef<string | null>(null);
+  const positionRef = useRef(position);
 
   const containerWidth = (scale * 6) / 7;
 
-  // Initial spawn point on left side of taskbar (slightly to the right of the edge widgets)
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
+
+  // Initial spawn point on the floor, left side (slightly to the right of the edge widgets)
   useEffect(() => {
     if (isSpawned && typeof window !== 'undefined') {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setPosition({
         x: 190,
-        y: window.innerHeight - scale - 120,
+        y: window.innerHeight - scale - PET_FLOOR_HEIGHT,
       });
-      setDirection('right');
     }
   }, [isSpawned, scale]);
 
@@ -53,7 +73,7 @@ export function RobotPet() {
     const handleResize = () => {
       setPosition((prev) => ({
         x: Math.min(prev.x, window.innerWidth - containerWidth - 20),
-        y: Math.min(prev.y, window.innerHeight - scale - 120),
+        y: Math.min(prev.y, window.innerHeight - scale - PET_FLOOR_HEIGHT),
       }));
     };
 
@@ -61,29 +81,70 @@ export function RobotPet() {
     return () => window.removeEventListener('resize', handleResize);
   }, [isSpawned, scale, containerWidth]);
 
-  // Random floating movement loop
+  // Random movement loop: either walk along the floor or fly anywhere on the desktop
   useEffect(() => {
-    if (!isSpawned || typeof window === 'undefined' || isInConversation) return;
+    if (!isSpawned || typeof window === 'undefined' || pausesMovement) return;
 
     const moveRandomly = () => {
       const margin = 80;
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
+      const floorY = screenHeight - scale - PET_FLOOR_HEIGHT;
+      const prev = positionRef.current;
+      const minX = margin;
+      const maxX = Math.max(minX + 100, screenWidth - containerWidth - margin);
 
-      // Robot flies freely across the entire desktop screen!
-      const newX = margin + Math.random() * Math.max(100, screenWidth - containerWidth - margin * 2);
-      const newY = margin + Math.random() * Math.max(100, screenHeight - scale - margin * 2 - 60);
+      let newX: number;
+      let newY: number;
 
-      setPosition((prev) => {
-        setDirection(newX > prev.x ? 'right' : 'left');
-        return { x: newX, y: newY };
-      });
+      if (Math.random() < 0.5) {
+        // Walk: stay on the floor and stroll a moderate distance either way
+        const pickedX = prev.x + (Math.random() * 2 - 1) * 420;
+        const step = Math.abs(pickedX - prev.x) < 120
+          ? (prev.x < screenWidth / 2 ? 1 : -1) * (160 + Math.random() * 200)
+          : pickedX - prev.x;
+        newX = Math.min(maxX, Math.max(minX, prev.x + step));
+        newY = floorY;
+        const distance = Math.hypot(newX - prev.x, newY - prev.y);
+        const walkSpeed = scale * 0.9;
+        setTravel({
+          type: 'tween',
+          ease: 'easeInOut',
+          duration: Math.min(9, Math.max(1.2, distance / walkSpeed)),
+        });
+      } else {
+        // Fly freely across the entire desktop screen
+        newX = margin + Math.random() * Math.max(100, screenWidth - containerWidth - margin * 2);
+        newY = margin + Math.random() * Math.max(100, screenHeight - scale - margin * 2 - 60);
+        setTravel(FLY_TRANSITION);
+      }
+
+      setPosition({ x: newX, y: newY });
     };
 
     // Move every 6-9 seconds
     const interval = setInterval(moveRandomly, 7000 + Math.random() * 2000);
     return () => clearInterval(interval);
-  }, [isSpawned, containerWidth, scale, isInConversation]);
+  }, [isSpawned, containerWidth, scale, pausesMovement]);
+
+  // Talking to the robot as Frieren: it lands beside her at a comfortable talking distance
+  useEffect(() => {
+    if (!isSpawned || !pausesMovement || typeof window === 'undefined') return;
+    const frieren = document.getElementById('frieren-pet');
+    if (!frieren) return;
+
+    const f = frieren.getBoundingClientRect();
+    const frierenCenter = f.left + f.width / 2;
+    const prev = positionRef.current;
+    const side = prev.x + containerWidth / 2 >= frierenCenter ? 1 : -1;
+    const gap = Math.max(90, scale * 1.8);
+    const newX = Math.min(window.innerWidth - containerWidth, Math.max(0, frierenCenter + side * gap - containerWidth / 2));
+    const newY = window.innerHeight - scale - PET_FLOOR_HEIGHT;
+    const distance = Math.hypot(newX - prev.x, newY - prev.y);
+
+    setTravel({ type: 'tween', ease: 'easeOut', duration: Math.min(3, Math.max(0.5, distance / (scale * 2.2))) });
+    setPosition({ x: newX, y: newY });
+  }, [isSpawned, pausesMovement, containerWidth, scale]);
 
   // Reactive assistant comments on OS actions
   const prevOpenStates = useRef<Record<string, boolean>>({});
@@ -188,21 +249,20 @@ export function RobotPet() {
 
       if (e.key.toLowerCase() === 'e') {
         e.preventDefault();
-        setActiveChatPartner('robot');
-        setIsChatInputOpen(true);
+        openChat('robot', 'frieren');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isNear, isChatInputOpen, setIsChatInputOpen, setActiveChatPartner]);
+  }, [isNear, isChatInputOpen, openChat]);
 
   // Typewriter Text Effect & Mouth Animation
   useEffect(() => {
     if (!robotSpeech) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- existing pet animation logic, intentionally unchanged
       setDisplayedSpeech('');
-      setIsMouthOpen(false);
+      speechCharRef.current = null;
       return;
     }
 
@@ -233,14 +293,12 @@ export function RobotPet() {
 
       setDisplayedSpeech(robotSpeech.slice(0, charsToShow));
 
-      // Toggle speaking state every 120ms
-      const isSpeakingNow = Math.floor(elapsed / 120) % 2 === 0 && progress < 1;
-      setIsMouthOpen(isSpeakingNow);
-
       if (progress < 1) {
+        // The canvas opens the mouth wide on vowels and narrow on consonants
+        speechCharRef.current = robotSpeech[Math.max(0, charsToShow - 1)] ?? ' ';
         animFrameId = requestAnimationFrame(updateFallback);
       } else {
-        setIsMouthOpen(false);
+        speechCharRef.current = null;
         bubbleTimeoutRef.current = setTimeout(() => {
           setRobotSpeech(null);
           const store = useOSStore.getState();
@@ -256,6 +314,7 @@ export function RobotPet() {
     return () => {
       if (animFrameId) cancelAnimationFrame(animFrameId);
       if (bubbleTimeoutRef.current) clearTimeout(bubbleTimeoutRef.current);
+      speechCharRef.current = null;
     };
   }, [robotSpeech, setRobotSpeech]);
 
@@ -271,25 +330,18 @@ export function RobotPet() {
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          setActiveChatPartner('robot');
-          setIsChatInputOpen(true);
+          openChat('robot', 'user');
         }
       }}
       onClick={(e) => {
         e.stopPropagation();
-        setActiveChatPartner('robot');
-        setIsChatInputOpen(true);
+        openChat('robot', 'user');
       }}
       animate={{
         x: position.x,
         y: position.y
       }}
-      transition={{
-        type: 'spring',
-        damping: 18,
-        stiffness: 30,
-        mass: 1.2
-      }}
+      transition={travel}
       style={{
         position: 'absolute',
         width: containerWidth,
@@ -309,8 +361,7 @@ export function RobotPet() {
             exit={{ opacity: 0, y: 5, scale: 0.8 }}
             onClick={(e) => {
               e.stopPropagation();
-              setActiveChatPartner('robot');
-              setIsChatInputOpen(true);
+              openChat('robot', 'frieren');
             }}
             transition={{ type: 'spring', damping: 15, stiffness: 220 }}
             className="absolute bottom-full mb-3 px-2.5 py-1 bg-surface text-fg border-2 border-line hover:bg-highlight hover:text-ink hover:border-ink rounded-xl shadow-doodle-sm text-2xs font-bold tracking-wide uppercase flex items-center gap-1.5 cursor-pointer pointer-events-auto whitespace-nowrap"
@@ -327,17 +378,7 @@ export function RobotPet() {
       {/* Speech Bubble Overlay */}
       <AnimatePresence>
         {(robotSpeech || (isThinking && isActivePartner)) && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            role="status"
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-surface-2 text-fg border-[2.5px] border-line shadow-doodle-md rounded-2xl text-xs w-max max-w-[min(380px,calc(100vw-2rem))] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
-            style={{ 
-              imageRendering: 'auto',
-            }}
-          >
+          <SpeechBubble side={bubbleSide}>
             {isThinking && isActivePartner ? (
               <div className="flex items-center justify-center gap-1.5 py-1 px-2">
                 <span className="w-2 h-2 bg-fg rounded-full animate-bounce [animation-delay:-0.3s]" />
@@ -347,166 +388,18 @@ export function RobotPet() {
             ) : (
               displayedSpeech
             )}
-            {/* Doodle speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-line" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-surface-2 -mt-[1px]" />
-          </motion.div>
+          </SpeechBubble>
         )}
       </AnimatePresence>
 
-      {/* SVG Animated Robot Graphics */}
-      <motion.div 
-        animate={{ 
-          y: [0, -4, 0],
-          scaleX: direction === 'left' ? 1 : -1
-        }}
-        transition={{ 
-          y: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
-          scaleX: { duration: 0.3 }
-        }}
-        className="w-full h-full"
-      >
-        <svg viewBox="0 0 100 120" style={{ overflow: 'visible' }} className="w-full h-full drop-shadow-md select-none">
-          {/* Antenna */}
-          <line x1="50" y1="28" x2="50" y2="14" stroke="#2d2a26" strokeWidth="3.5" strokeLinecap="round" />
-          <motion.circle 
-            cx="50" 
-            cy="11" 
-            r="4.5" 
-            fill={isActivePartner ? '#f43f5e' : isDark ? '#38bdf8' : '#fef08a'} 
-            stroke="#2d2a26"
-            strokeWidth="2"
-            animate={{ opacity: [1, 0.4, 1] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-          />
-          
-          {/* Head */}
-          <rect 
-            x="22" 
-            y="26" 
-            width="56" 
-            height="42" 
-            rx="14" 
-            fill={isDark ? '#202023' : '#fffdfa'} 
-            stroke="#2d2a26" 
-            strokeWidth="3.5" 
-          />
-          
-          {/* Screen/Face */}
-          <rect 
-            x="28" 
-            y="32" 
-            width="44" 
-            height="30" 
-            rx="9" 
-            fill={isDark ? '#0c0c0e' : '#fef08a'} 
-            stroke="#2d2a26"
-            strokeWidth="2"
-          />
-          
-          {/* Face Display Matrix (Eyes & Mouth) */}
-          {isThinking && isActivePartner ? (
-            <>
-              {/* Pulsing/Thinking LEDs */}
-              <motion.circle 
-                cx="40" 
-                cy="44" 
-                r="3.5" 
-                fill={isDark ? '#38bdf8' : '#2d2a26'} 
-                animate={{ opacity: [1, 0.4, 1] }}
-                transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <motion.circle 
-                cx="60" 
-                cy="44" 
-                r="3.5" 
-                fill={isDark ? '#38bdf8' : '#2d2a26'} 
-                animate={{ opacity: [1, 0.4, 1] }}
-                transition={{ duration: 1, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-              />
-              <motion.path 
-                d="M 44 53 L 56 53" 
-                stroke={isDark ? '#38bdf8' : '#2d2a26'} 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
-                animate={{ opacity: [1, 0.5, 1] }}
-                transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-              />
-            </>
-          ) : isMouthOpen ? (
-            <>
-              {/* Speaking LEDs */}
-              <path d="M 37 44 L 43 44" stroke={isDark ? '#10b981' : '#2d2a26'} strokeWidth="3" strokeLinecap="round" />
-              <path d="M 57 44 L 63 44" stroke={isDark ? '#10b981' : '#2d2a26'} strokeWidth="3" strokeLinecap="round" />
-              {/* Speaking waveform */}
-              <path d="M 44 52 Q 47 48 50 52 T 56 52" stroke={isDark ? '#10b981' : '#2d2a26'} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-            </>
-          ) : (
-            <>
-              {/* Idle screen display */}
-              <circle cx="40" cy="44" r="4" fill={isDark ? '#38bdf8' : '#2d2a26'} />
-              <circle cx="60" cy="44" r="4" fill={isDark ? '#38bdf8' : '#2d2a26'} />
-              {/* Cute smiley smile */}
-              <path d="M 45 52 Q 50 56 55 52" stroke={isDark ? '#38bdf8' : '#2d2a26'} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-            </>
-          )}
-
-          {/* Neck */}
-          <rect x="44" y="68" width="12" height="6" rx="2.5" fill={isDark ? '#151518' : '#fcf9f2'} stroke="#2d2a26" strokeWidth="2" />
-
-          {/* Body */}
-          <rect 
-            x="25" 
-            y="74" 
-            width="50" 
-            height="30" 
-            rx="10" 
-            fill={isDark ? '#2d2d30' : '#fffdfa'} 
-            stroke="#2d2a26" 
-            strokeWidth="3.5" 
-          />
-          
-          {/* Chest UI Panel */}
-          <rect 
-            x="33" 
-            y="80" 
-            width="34" 
-            height="15" 
-            rx="4" 
-            fill={isDark ? '#0c0c0e' : '#bae6fd'} 
-            stroke="#2d2a26"
-            strokeWidth="2"
-          />
-          
-          {/* Glowing heart/battery status */}
-          <motion.circle 
-            cx="41" 
-            cy="87.5" 
-            r="3.5" 
-            fill={isActivePartner ? '#f43f5e' : isDark ? '#10b981' : '#2d2a26'} 
-            animate={{ opacity: [1, 0.4, 1] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <line x1="50" y1="87.5" x2="61" y2="87.5" stroke="#2d2a26" strokeWidth="3" strokeLinecap="round" />
-          <line x1="50" y1="87.5" x2="57" y2="87.5" stroke={isActivePartner ? '#f43f5e' : isDark ? '#38bdf8' : '#e11d48'} strokeWidth="3" strokeLinecap="round" />
-
-          {/* Hovering Engine Flame / Thruster */}
-          <motion.path 
-            d="M 43,104 L 57,104 L 50,115 Z" 
-            fill="#f59e0b" 
-            stroke="#2d2a26"
-            strokeWidth="1.5"
-            animate={{ y: [0, 3, 0] }}
-            transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <motion.path 
-            d="M 46,104 L 54,104 L 50,111 Z" 
-            fill="#ef4444" 
-            animate={{ y: [0, 2, 0] }}
-            transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
-          />
-        </svg>
-      </motion.div>
+      {/* Canvas robot: walks on the floor, flies with thrusters, faces its direction */}
+      <RobotCanvas
+        scale={scale}
+        isDark={isDark}
+        isActivePartner={isActivePartner}
+        isThinking={isThinking}
+        speechCharRef={speechCharRef}
+      />
     </motion.div>
   );
 }

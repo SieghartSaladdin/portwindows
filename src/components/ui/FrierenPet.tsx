@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useOSStore } from '@/lib/store';
 import { playTextBlip } from '@/lib/audio';
+import { SpeechBubble, useBubbleSide } from '@/components/ui/SpeechBubble';
 import {
   buildGroundedPetSheet,
   PET_CELL_HEIGHT,
@@ -27,11 +28,36 @@ const KEY_DIRECTIONS: Record<string, Facing> = {
 export function FrierenPet() {
   const { 
     frierenConfig, 
-    frierenSpeech, 
+    frierenSpeech,
     setFrierenSpeech,
-    activeChatPartner
+    fernSpeech,
+    starkSpeech,
+    robotSpeech,
+    activeChatPartner,
+    chatMode,
+    isChatInputOpen,
+    isThinking
   } = useOSStore();
   const { isSpawned, scale, speed } = frierenConfig;
+
+  // A conversation is only live while the chat bar is open or someone is still talking/thinking.
+  // activeChatPartner alone lingers after the bar closes, so it must not drive her behaviour.
+  const partnerSpeech =
+    activeChatPartner === 'fern' ? fernSpeech : activeChatPartner === 'stark' ? starkSpeech : robotSpeech;
+  const isInConversation =
+    !!activeChatPartner && (isChatInputOpen || !!partnerSpeech || !!frierenSpeech || isThinking);
+  const partnerPetId =
+    activeChatPartner === 'fern' ? 'fern-pet' : activeChatPartner === 'stark' ? 'stark-pet' : 'robot-pet';
+  // Only the floor-bound partners can be walked up to; the robot comes to her instead
+  const approachTargetId =
+    isInConversation && chatMode === 'frieren' && (activeChatPartner === 'fern' || activeChatPartner === 'stark')
+      ? partnerPetId
+      : null;
+  const bubbleSide = useBubbleSide(
+    'frieren-pet',
+    partnerPetId,
+    isInConversation && chatMode === 'frieren' && !!activeChatPartner,
+  );
 
   // Sprite animation states
   const [position, setPosition] = useState({ x: 300, y: 200 });
@@ -49,6 +75,7 @@ export function FrierenPet() {
   // Held movement keys in press order; the most recent one decides which way Frieren faces
   const keyOrder = useRef<string[]>([]);
   const animationFrameRef = useRef<number | null>(null);
+  const approachingRef = useRef(false);
 
   const directionRef = useRef(direction);
   const speedRef = useRef(speed);
@@ -173,16 +200,16 @@ export function FrierenPet() {
     return () => clearInterval(timer);
   }, [isSpawned, isWalking]);
 
-  // Turn Frieren to face down when idle for a short period
+  // Turn Frieren to face down when idle for a short period (not while she is talking to someone)
   useEffect(() => {
-    if (!isSpawned || isWalking) return;
+    if (!isSpawned || isWalking || isInConversation) return;
 
     const timer = setTimeout(() => {
       setDirection('down');
     }, 1500); // 1.5 seconds of inactivity
 
     return () => clearTimeout(timer);
-  }, [isSpawned, isWalking]);
+  }, [isSpawned, isWalking, isInConversation]);
 
   // 3. Movement and Keyboard loops
   useEffect(() => {
@@ -279,15 +306,69 @@ export function FrierenPet() {
     };
   }, [isSpawned]);
 
-  // Face the active chat partner when in conversation
+  // Walk up to the partner and stop at a comfortable talking distance, so the two visibly face each other
+  // instead of overlapping. Any movement key hands control back to the player.
   useEffect(() => {
-    if (!activeChatPartner || !isSpawned) return;
+    if (!isSpawned || !approachTargetId) return;
+
+    approachingRef.current = true;
+    let raf = 0;
+    const startedAt = performance.now();
+
+    const finish = (facing?: Facing) => {
+      approachingRef.current = false;
+      if (pressedKeys.current.size === 0) setIsWalking(false);
+      if (facing) setDirection(facing);
+    };
+
+    const step = () => {
+      const self = document.getElementById('frieren-pet');
+      const partner = document.getElementById(approachTargetId);
+      if (pressedKeys.current.size > 0 || !self || !partner || performance.now() - startedAt > 3500) {
+        finish();
+        return;
+      }
+
+      const a = self.getBoundingClientRect();
+      const b = partner.getBoundingClientRect();
+      const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+      const gap = Math.max(90, scaleRef.current * 1.8);
+      // Positive: she needs to move right (toward a partner on her right, or away from one on her left)
+      const delta = (Math.abs(dx) - gap) * (dx >= 0 ? 1 : -1);
+      const facingPartner: Facing = dx >= 0 ? 'right' : 'left';
+
+      if (Math.abs(delta) < 2) {
+        finish(facingPartner);
+        return;
+      }
+
+      const move = Math.sign(delta) * Math.min(Math.abs(delta), speedRef.current * 0.7);
+      setIsWalking(true);
+      setDirection(move > 0 ? 'right' : 'left');
+      setPosition((pos) => ({
+        x: Math.max(0, Math.min(window.innerWidth - scaleRef.current, pos.x + move)),
+        y: pos.y,
+      }));
+      raf = requestAnimationFrame(step);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(raf);
+      approachingRef.current = false;
+    };
+  }, [isSpawned, approachTargetId]);
+
+  // Face the active chat partner while a conversation is live
+  useEffect(() => {
+    if (!isInConversation || !isSpawned) return;
 
     const facePartner = () => {
+      // Walking (keys) or stepping up to the partner decides her direction on their own
+      if (approachingRef.current || pressedKeys.current.size > 0) return;
       const frierenEl = document.getElementById('frieren-pet');
-      const partnerId = activeChatPartner === 'fern' ? 'fern-pet' : activeChatPartner === 'stark' ? 'stark-pet' : 'robot-pet';
-      const partnerEl = document.getElementById(partnerId);
-      
+      const partnerEl = document.getElementById(partnerPetId);
+
       if (frierenEl && partnerEl) {
         const r1 = frierenEl.getBoundingClientRect();
         const r2 = partnerEl.getBoundingClientRect();
@@ -305,7 +386,7 @@ export function FrierenPet() {
     facePartner();
     const interval = setInterval(facePartner, 200);
     return () => clearInterval(interval);
-  }, [activeChatPartner, isSpawned]);
+  }, [isInConversation, partnerPetId, isSpawned]);
 
   // 5. Silent Typewriter Speech Bubble & Mouth Animation
   useEffect(() => {
@@ -412,24 +493,7 @@ export function FrierenPet() {
     >
       {/* Speech Bubble Overlay */}
       <AnimatePresence>
-        {frierenSpeech && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 10 }}
-            transition={{ type: 'spring', damping: 15, stiffness: 220 }}
-            role="status"
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-2.5 bg-surface-2 text-fg border-[2.5px] border-line shadow-doodle-md rounded-2xl text-xs w-max max-w-[min(380px,calc(100vw-2rem))] min-w-[90px] break-words font-doodle font-bold leading-relaxed text-center z-50"
-            style={{ 
-              imageRendering: 'auto',
-            }}
-          >
-            {displayedSpeech}
-            {/* Doodle speech bubble pointer tail */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[7px] border-transparent border-t-line" />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-surface-2 -mt-[1px]" />
-          </motion.div>
-        )}
+        {frierenSpeech && <SpeechBubble side={bubbleSide}>{displayedSpeech}</SpeechBubble>}
       </AnimatePresence>
  
       {/* Frieren Sprite Div */}
